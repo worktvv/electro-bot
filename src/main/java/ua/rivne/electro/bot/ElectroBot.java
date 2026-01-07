@@ -13,6 +13,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ua.rivne.electro.config.Config;
 import ua.rivne.electro.model.DailySchedule;
 import ua.rivne.electro.parser.ScheduleParser;
+import ua.rivne.electro.service.DatabaseService;
 import ua.rivne.electro.service.NotificationService;
 import ua.rivne.electro.service.UserSettingsService;
 
@@ -27,6 +28,7 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     private final Config config;
     private final ScheduleParser parser;
+    private final DatabaseService databaseService;
     private final UserSettingsService userSettings;
     private final NotificationService notificationService;
 
@@ -34,7 +36,8 @@ public class ElectroBot extends TelegramLongPollingBot {
         super(config.getBotToken());
         this.config = config;
         this.parser = new ScheduleParser();
-        this.userSettings = new UserSettingsService();
+        this.databaseService = new DatabaseService(config.getDatabaseUrl());
+        this.userSettings = new UserSettingsService(databaseService);
         this.notificationService = new NotificationService(parser, userSettings);
 
         // Start cache updater (fetches data every 30 min)
