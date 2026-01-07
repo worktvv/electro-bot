@@ -361,7 +361,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         sb.append(String.format("• Останнє оновлення: %s\n", lastUpdate != null ? lastUpdate.toString() : "ніколи"));
         sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "так" : "ні"));
 
-        sendMarkdownMessage(chatId, sb.toString());
+        sendMessageWithKeyboard(chatId, sb.toString(), KeyboardFactory.statsKeyboard());
     }
 
     private void sendTodaySchedule(long chatId) {
