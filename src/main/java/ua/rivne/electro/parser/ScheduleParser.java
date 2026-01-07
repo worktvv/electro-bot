@@ -190,7 +190,12 @@ public class ScheduleParser {
 
     /**
      * Parses text with outage hours.
-     * Example: "13:00 - 17:00" or "08:00 - 12:0020:00 - 23:59"
+     * Handles various formats:
+     * - "13:00 - 17:00" (with spaces)
+     * - "13:00-17:00" (without spaces)
+     * - "08:00 - 12:00, 20:00 - 23:59" (comma separated)
+     * - "08:00 - 12:00\n20:00 - 23:59" (newline separated)
+     * - "08:00 - 12:0020:00 - 23:59" (no separator)
      */
     private List<String> parseHours(String text) {
         List<String> hours = new ArrayList<>();
@@ -199,17 +204,46 @@ public class ScheduleParser {
             return hours;
         }
 
-        // Split by time pattern (HH:MM - HH:MM)
-        String[] parts = text.split("(?<=\\d{2}:\\d{2})(?=\\d{2}:)");
+        // Normalize: replace newlines and commas with a unique separator
+        String normalized = text
+            .replace("\n", "|")
+            .replace("\r", "")
+            .replace(",", "|");
+
+        // Split by separator or by pattern where one time range ends and another begins
+        // Pattern: after HH:MM, before HH: (handles "12:0020:00" case)
+        String[] parts = normalized.split("\\|+|(?<=\\d{2}:\\d{2})(?=\\d{2}:)");
 
         for (String part : parts) {
             String trimmed = part.trim();
             if (!trimmed.isEmpty() && trimmed.contains(":")) {
-                hours.add(trimmed);
+                // Normalize the time range format: ensure "HH:MM - HH:MM" format
+                String normalizedRange = normalizeTimeRange(trimmed);
+                if (normalizedRange != null) {
+                    hours.add(normalizedRange);
+                }
             }
         }
 
         return hours;
+    }
+
+    /**
+     * Normalizes time range to consistent format "HH:MM - HH:MM".
+     * Handles: "13:00-17:00", "13:00 -17:00", "13:00- 17:00", "13:00 - 17:00"
+     */
+    private String normalizeTimeRange(String range) {
+        // Remove extra spaces and normalize dashes
+        String cleaned = range.trim()
+            .replaceAll("\\s*-\\s*", " - ")  // Normalize "HH:MM-HH:MM" to "HH:MM - HH:MM"
+            .replaceAll("\\s+", " ");         // Remove multiple spaces
+
+        // Validate format: should match "HH:MM - HH:MM"
+        if (cleaned.matches("\\d{1,2}:\\d{2}\\s*-\\s*\\d{1,2}:\\d{2}")) {
+            return cleaned;
+        }
+
+        return null; // Invalid format
     }
 
     /**
