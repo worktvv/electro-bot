@@ -24,7 +24,7 @@ public class NotificationService {
     private static final int CHECK_INTERVAL_MINUTES = 1; // Check every minute for accuracy
 
     // Notification intervals (minutes before outage)
-    private static final int[] NOTIFY_BEFORE_MINUTES = {65, 5};
+    private static final int[] NOTIFY_BEFORE_MINUTES = {30, 5};
 
     private final ScheduleParser parser;
     private final UserSettingsService userSettings;
@@ -151,11 +151,21 @@ public class NotificationService {
 
     /**
      * Parses start time from time range.
+     * Handles formats: "13:00 - 17:00", "13:00-17:00", "8:00 - 12:00"
      */
     private LocalTime parseStartTime(String hourRange) {
         try {
-            String startTimeStr = hourRange.split("-")[0].trim();
-            return LocalTime.parse(startTimeStr, DateTimeFormatter.ofPattern("HH:mm"));
+            // Split by dash (with or without spaces)
+            String startTimeStr = hourRange.split("\\s*-\\s*")[0].trim();
+
+            // Handle both "HH:mm" and "H:mm" formats
+            if (startTimeStr.matches("\\d{1,2}:\\d{2}")) {
+                String[] parts = startTimeStr.split(":");
+                int hour = Integer.parseInt(parts[0]);
+                int minute = Integer.parseInt(parts[1]);
+                return LocalTime.of(hour, minute);
+            }
+            return null;
         } catch (Exception e) {
             return null;
         }
