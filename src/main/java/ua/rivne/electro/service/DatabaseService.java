@@ -80,6 +80,16 @@ public class DatabaseService {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_notification_messages_chat_id ON notification_messages(chat_id);
+
+            CREATE TABLE IF NOT EXISTS bot_events (
+                id SERIAL PRIMARY KEY,
+                chat_id BIGINT NOT NULL,
+                event_type VARCHAR(50) NOT NULL,
+                event_data VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_bot_events_created_at ON bot_events(created_at);
+            CREATE INDEX IF NOT EXISTS idx_bot_events_chat_id ON bot_events(chat_id);
             """;
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
@@ -266,6 +276,194 @@ public class DatabaseService {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
         }
+    }
+
+    // ==================== Event Logging ====================
+
+    /**
+     * Logs a bot event for analytics.
+     */
+    public void logEvent(long chatId, String eventType, String eventData) {
+        String sql = "INSERT INTO bot_events (chat_id, event_type, event_data) VALUES (?, ?, ?)";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, chatId);
+            stmt.setString(2, eventType);
+            stmt.setString(3, eventData);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Cleans up old events (older than specified days).
+     */
+    public void cleanOldEvents(int daysToKeep) {
+        String sql = "DELETE FROM bot_events WHERE created_at < NOW() - INTERVAL '" + daysToKeep + " days'";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            int deleted = stmt.executeUpdate(sql);
+            if (deleted > 0) {
+                System.out.println("Cleaned " + deleted + " old events");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ==================== Statistics ====================
+
+    /**
+     * Returns total number of users.
+     */
+    public int getTotalUsers() {
+        String sql = "SELECT COUNT(*) FROM user_settings";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns number of users who selected a queue.
+     */
+    public int getUsersWithQueue() {
+        String sql = "SELECT COUNT(*) FROM user_settings WHERE queue IS NOT NULL";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns number of users with notifications enabled.
+     */
+    public int getUsersWithNotificationsEnabled() {
+        String sql = "SELECT COUNT(*) FROM user_settings WHERE notifications_enabled = TRUE";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns queue distribution (how many users selected each queue).
+     */
+    public java.util.Map<String, Integer> getQueueDistribution() {
+        java.util.Map<String, Integer> distribution = new java.util.LinkedHashMap<>();
+        String sql = "SELECT queue, COUNT(*) as cnt FROM user_settings WHERE queue IS NOT NULL GROUP BY queue ORDER BY queue";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                distribution.put(rs.getString("queue"), rs.getInt("cnt"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return distribution;
+    }
+
+    /**
+     * Returns number of events for today.
+     */
+    public int getEventsToday() {
+        String sql = "SELECT COUNT(*) FROM bot_events WHERE created_at >= CURRENT_DATE";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns number of unique active users today.
+     */
+    public int getActiveUsersToday() {
+        String sql = "SELECT COUNT(DISTINCT chat_id) FROM bot_events WHERE created_at >= CURRENT_DATE";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns number of unique active users in last 7 days.
+     */
+    public int getActiveUsersWeek() {
+        String sql = "SELECT COUNT(DISTINCT chat_id) FROM bot_events WHERE created_at >= NOW() - INTERVAL '7 days'";
+        return getCountResult(sql);
+    }
+
+    /**
+     * Returns daily user growth (new users per day for last N days).
+     */
+    public java.util.Map<String, Integer> getDailyUserGrowth(int days) {
+        java.util.Map<String, Integer> growth = new java.util.LinkedHashMap<>();
+        String sql = """
+            SELECT DATE(created_at) as day, COUNT(*) as cnt
+            FROM user_settings
+            WHERE created_at >= NOW() - INTERVAL '%d days'
+            GROUP BY DATE(created_at)
+            ORDER BY day
+            """.formatted(days);
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                growth.put(rs.getString("day"), rs.getInt("cnt"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return growth;
+    }
+
+    /**
+     * Returns daily active users count (unique users per day for last N days).
+     */
+    public java.util.Map<String, Integer> getDailyActiveUsers(int days) {
+        java.util.Map<String, Integer> activeUsers = new java.util.LinkedHashMap<>();
+        String sql = """
+            SELECT DATE(created_at) as day, COUNT(DISTINCT chat_id) as cnt
+            FROM bot_events
+            WHERE created_at >= NOW() - INTERVAL '%d days'
+            GROUP BY DATE(created_at)
+            ORDER BY day
+            """.formatted(days);
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                activeUsers.put(rs.getString("day"), rs.getInt("cnt"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return activeUsers;
+    }
+
+    /**
+     * Returns popular commands/actions.
+     */
+    public java.util.Map<String, Integer> getPopularActions(int limit) {
+        java.util.Map<String, Integer> actions = new java.util.LinkedHashMap<>();
+        String sql = """
+            SELECT event_data, COUNT(*) as cnt
+            FROM bot_events
+            WHERE created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY event_data
+            ORDER BY cnt DESC
+            LIMIT %d
+            """.formatted(limit);
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                actions.put(rs.getString("event_data"), rs.getInt("cnt"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return actions;
+    }
+
+    private int getCountResult(String sql) {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
     }
 }
 
