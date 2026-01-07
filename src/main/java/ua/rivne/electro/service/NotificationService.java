@@ -128,6 +128,7 @@ public class NotificationService {
 
                 // Check if already sent this notification
                 if (sentNotifications.add(notificationKey)) {
+                    System.out.println("🔔 Sending notification to " + chatId + " (" + notifyMinutes + " min before " + hourRange + ")");
                     String emoji = notifyMinutes <= 5 ? "🚨" : "⚠️";
                     String urgency = notifyMinutes <= 5 ? "ТЕРМІНОВО! " : "";
 
