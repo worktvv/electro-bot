@@ -114,12 +114,14 @@ public class ElectroBot extends TelegramLongPollingBot {
         // Log button event
         databaseService.logEvent(chatId, "button", data);
 
-        // Clear notifications on any button press (except clear button itself)
-        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS)) {
+        // Clear notifications and stats on any button press (except clear/close buttons)
+        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS) && !data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             clearNotifications(chatId);
         }
 
-        if (data.equals(KeyboardFactory.CB_TODAY)) {
+        if (data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
+            handleCloseStats(chatId, messageId);
+        } else if (data.equals(KeyboardFactory.CB_TODAY)) {
             editMessageWithSchedule(chatId, messageId, getTodayText(chatId));
         } else if (data.equals(KeyboardFactory.CB_TOMORROW)) {
             editMessageWithSchedule(chatId, messageId, getTomorrowText(chatId));
@@ -274,7 +276,34 @@ public class ElectroBot extends TelegramLongPollingBot {
             }
         }
 
-        sendMarkdownMessage(chatId, sb.toString());
+        // Send with close button and save message_id for auto-delete
+        try {
+            SendMessage message = SendMessage.builder()
+                .chatId(chatId)
+                .text(sb.toString())
+                .parseMode("Markdown")
+                .replyMarkup(KeyboardFactory.statsKeyboard())
+                .build();
+            Message sent = execute(message);
+            // Save message_id so it gets deleted with notifications
+            userSettings.addNotificationMessageId(chatId, sent.getMessageId());
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Handles close stats button - deletes the stats message.
+     */
+    private void handleCloseStats(long chatId, int messageId) {
+        try {
+            execute(DeleteMessage.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .build());
+        } catch (TelegramApiException e) {
+            // Message may already be deleted
+        }
     }
 
     private void sendTodaySchedule(long chatId) {
