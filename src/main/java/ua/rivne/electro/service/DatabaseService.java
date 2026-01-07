@@ -16,22 +16,24 @@ public class DatabaseService {
 
     public DatabaseService(String databaseUrl) {
         HikariConfig config = new HikariConfig();
-        
-        // Convert Railway's postgres:// to jdbc:postgresql://
+
+        // Convert Railway's postgres:// or postgresql:// to jdbc:postgresql://
         String jdbcUrl = databaseUrl;
         if (jdbcUrl.startsWith("postgres://")) {
-            jdbcUrl = jdbcUrl.replace("postgres://", "jdbc:postgresql://");
+            jdbcUrl = "jdbc:postgresql://" + jdbcUrl.substring("postgres://".length());
+        } else if (jdbcUrl.startsWith("postgresql://")) {
+            jdbcUrl = "jdbc:postgresql://" + jdbcUrl.substring("postgresql://".length());
         } else if (!jdbcUrl.startsWith("jdbc:")) {
             jdbcUrl = "jdbc:postgresql://" + jdbcUrl;
         }
-        
+
         config.setJdbcUrl(jdbcUrl);
         config.setMaximumPoolSize(5);
         config.setMinimumIdle(1);
         config.setConnectionTimeout(30000);
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
-        
+
         this.dataSource = new HikariDataSource(config);
         initTables();
     }
