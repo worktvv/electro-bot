@@ -17,17 +17,42 @@ public class DatabaseService {
     public DatabaseService(String databaseUrl) {
         HikariConfig config = new HikariConfig();
 
-        // Convert Railway's postgres:// or postgresql:// to jdbc:postgresql://
-        String jdbcUrl = databaseUrl;
-        if (jdbcUrl.startsWith("postgres://")) {
-            jdbcUrl = "jdbc:postgresql://" + jdbcUrl.substring("postgres://".length());
-        } else if (jdbcUrl.startsWith("postgresql://")) {
-            jdbcUrl = "jdbc:postgresql://" + jdbcUrl.substring("postgresql://".length());
-        } else if (!jdbcUrl.startsWith("jdbc:")) {
-            jdbcUrl = "jdbc:postgresql://" + jdbcUrl;
+        // Parse Railway's DATABASE_URL format:
+        // postgresql://username:password@host:port/database
+        try {
+            String url = databaseUrl;
+
+            // Remove protocol prefix
+            if (url.startsWith("postgres://")) {
+                url = url.substring("postgres://".length());
+            } else if (url.startsWith("postgresql://")) {
+                url = url.substring("postgresql://".length());
+            }
+
+            // Parse: username:password@host:port/database
+            String[] atParts = url.split("@");
+            String credentials = atParts[0];
+            String hostPart = atParts[1];
+
+            // Parse credentials
+            String[] credParts = credentials.split(":");
+            String username = credParts[0];
+            String password = credParts[1];
+
+            // Parse host:port/database
+            String[] slashParts = hostPart.split("/");
+            String hostPort = slashParts[0];
+            String database = slashParts[1];
+
+            String jdbcUrl = "jdbc:postgresql://" + hostPort + "/" + database;
+
+            config.setJdbcUrl(jdbcUrl);
+            config.setUsername(username);
+            config.setPassword(password);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse DATABASE_URL: " + databaseUrl, e);
         }
 
-        config.setJdbcUrl(jdbcUrl);
         config.setMaximumPoolSize(5);
         config.setMinimumIdle(1);
         config.setConnectionTimeout(30000);
