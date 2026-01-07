@@ -1,0 +1,17 @@
+# Етап 1: Збірка
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# Етап 2: Запуск
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Копіюємо зібраний JAR
+COPY --from=build /app/target/electro-bot-1.0-SNAPSHOT.jar app.jar
+
+# Запуск бота
+CMD ["java", "-jar", "app.jar"]
+
