@@ -97,6 +97,57 @@ public class DatabaseService {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        // Run migrations
+        addForeignKeyConstraints();
+    }
+
+    /**
+     * Adds foreign key constraints to ensure data integrity.
+     * Cleans up orphaned records first.
+     */
+    private void addForeignKeyConstraints() {
+        // First, clean up orphaned records (if any)
+        String cleanupSql = """
+            DELETE FROM notification_messages
+            WHERE chat_id NOT IN (SELECT chat_id FROM user_settings);
+
+            DELETE FROM bot_events
+            WHERE chat_id NOT IN (SELECT chat_id FROM user_settings);
+            """;
+
+        // Then add FK constraints (if not exist)
+        String fkSql = """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_name = 'fk_notification_messages_user'
+                ) THEN
+                    ALTER TABLE notification_messages
+                    ADD CONSTRAINT fk_notification_messages_user
+                    FOREIGN KEY (chat_id) REFERENCES user_settings(chat_id) ON DELETE CASCADE;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_name = 'fk_bot_events_user'
+                ) THEN
+                    ALTER TABLE bot_events
+                    ADD CONSTRAINT fk_bot_events_user
+                    FOREIGN KEY (chat_id) REFERENCES user_settings(chat_id) ON DELETE CASCADE;
+                END IF;
+            END $$;
+            """;
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(cleanupSql);
+            stmt.execute(fkSql);
+            System.out.println("✅ Foreign key constraints verified");
+        } catch (SQLException e) {
+            System.err.println("⚠️ Failed to add FK constraints: " + e.getMessage());
+        }
     }
 
     public void setUserQueue(long chatId, String queue) {
