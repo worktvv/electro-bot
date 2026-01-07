@@ -18,6 +18,7 @@ import ua.rivne.electro.service.NotificationService;
 import ua.rivne.electro.service.UserSettingsService;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Main Telegram bot class.
@@ -67,6 +68,9 @@ public class ElectroBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
             String userName = update.getMessage().getFrom().getFirstName();
 
+            // Log command event
+            databaseService.logEvent(chatId, "command", messageText);
+
             // Handle commands
             switch (messageText) {
                 case "/start":
@@ -87,6 +91,9 @@ public class ElectroBot extends TelegramLongPollingBot {
                 case "/menu":
                     sendMainMenu(chatId);
                     break;
+                case "/stats":
+                    sendStats(chatId);
+                    break;
                 default:
                     sendMessage(chatId, "🤔 Невідома команда. Напишіть /help для списку команд.");
             }
@@ -103,6 +110,9 @@ public class ElectroBot extends TelegramLongPollingBot {
 
         // Answer callback to remove "loading" indicator
         answerCallback(callback.getId());
+
+        // Log button event
+        databaseService.logEvent(chatId, "button", data);
 
         // Clear notifications on any button press (except clear button itself)
         if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS)) {
@@ -189,6 +199,82 @@ public class ElectroBot extends TelegramLongPollingBot {
         boolean showFeedback = !userSettings.hasLiked(chatId);
         boolean showClearNotifications = userSettings.hasNotifications(chatId);
         sendMessageWithKeyboard(chatId, "📋 *Головне меню*\n\nОберіть дію:", KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
+    }
+
+    /**
+     * Sends statistics (admin only).
+     */
+    private void sendStats(long chatId) {
+        if (!config.isAdmin(chatId)) {
+            sendMessage(chatId, "⛔ Ця команда доступна тільки адміністратору.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("📊 *Статистика бота*\n\n");
+
+        // Basic stats
+        int totalUsers = databaseService.getTotalUsers();
+        int usersWithQueue = databaseService.getUsersWithQueue();
+        int usersWithNotifications = databaseService.getUsersWithNotificationsEnabled();
+        int likesCount = userSettings.getLikesCount();
+
+        sb.append("👥 *Користувачі:*\n");
+        sb.append(String.format("• Всього: *%d*\n", totalUsers));
+        sb.append(String.format("• Обрали чергу: *%d*\n", usersWithQueue));
+        sb.append(String.format("• Сповіщення увімкнено: *%d*\n", usersWithNotifications));
+        sb.append(String.format("• Лайків: *%d*\n\n", likesCount));
+
+        // Activity stats
+        int eventsToday = databaseService.getEventsToday();
+        int activeToday = databaseService.getActiveUsersToday();
+        int activeWeek = databaseService.getActiveUsersWeek();
+
+        sb.append("📈 *Активність:*\n");
+        sb.append(String.format("• Запитів сьогодні: *%d*\n", eventsToday));
+        sb.append(String.format("• Активних сьогодні: *%d*\n", activeToday));
+        sb.append(String.format("• Активних за тиждень: *%d*\n\n", activeWeek));
+
+        // Queue distribution
+        Map<String, Integer> queueDist = databaseService.getQueueDistribution();
+        if (!queueDist.isEmpty()) {
+            sb.append("🔌 *Розподіл по чергах:*\n");
+            for (Map.Entry<String, Integer> entry : queueDist.entrySet()) {
+                sb.append(String.format("• %s: *%d*\n", entry.getKey(), entry.getValue()));
+            }
+            sb.append("\n");
+        }
+
+        // Daily active users (last 7 days)
+        Map<String, Integer> dailyActive = databaseService.getDailyActiveUsers(7);
+        if (!dailyActive.isEmpty()) {
+            sb.append("👤 *Активних користувачів (7 днів):*\n");
+            for (Map.Entry<String, Integer> entry : dailyActive.entrySet()) {
+                sb.append(String.format("• %s: *%d*\n", entry.getKey(), entry.getValue()));
+            }
+            sb.append("\n");
+        }
+
+        // Daily growth (last 7 days)
+        Map<String, Integer> growth = databaseService.getDailyUserGrowth(7);
+        if (!growth.isEmpty()) {
+            sb.append("📅 *Нові користувачі (7 днів):*\n");
+            for (Map.Entry<String, Integer> entry : growth.entrySet()) {
+                sb.append(String.format("• %s: *+%d*\n", entry.getKey(), entry.getValue()));
+            }
+            sb.append("\n");
+        }
+
+        // Popular actions
+        Map<String, Integer> actions = databaseService.getPopularActions(5);
+        if (!actions.isEmpty()) {
+            sb.append("🔥 *Популярні дії (тиждень):*\n");
+            for (Map.Entry<String, Integer> entry : actions.entrySet()) {
+                sb.append(String.format("• %s: *%d*\n", entry.getKey(), entry.getValue()));
+            }
+        }
+
+        sendMarkdownMessage(chatId, sb.toString());
     }
 
     private void sendTodaySchedule(long chatId) {
