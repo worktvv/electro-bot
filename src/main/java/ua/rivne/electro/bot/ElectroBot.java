@@ -110,11 +110,11 @@ public class ElectroBot extends TelegramLongPollingBot {
         }
 
         if (data.equals(KeyboardFactory.CB_TODAY)) {
-            editMessageWithSchedule(chatId, messageId, getTodayText());
+            editMessageWithSchedule(chatId, messageId, getTodayText(chatId));
         } else if (data.equals(KeyboardFactory.CB_TOMORROW)) {
-            editMessageWithSchedule(chatId, messageId, getTomorrowText());
+            editMessageWithSchedule(chatId, messageId, getTomorrowText(chatId));
         } else if (data.equals(KeyboardFactory.CB_ALL)) {
-            editMessageWithSchedule(chatId, messageId, getAllSchedulesText());
+            editMessageWithSchedule(chatId, messageId, getAllSchedulesText(chatId));
         } else if (data.equals(KeyboardFactory.CB_MY_QUEUE)) {
             showMyQueue(chatId, messageId);
         } else if (data.startsWith(KeyboardFactory.CB_SET_QUEUE)) {
@@ -192,42 +192,44 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     private void sendTodaySchedule(long chatId) {
-        sendMarkdownMessage(chatId, getTodayText());
+        sendMarkdownMessage(chatId, getTodayText(chatId));
     }
 
     private void sendTomorrowSchedule(long chatId) {
-        sendMarkdownMessage(chatId, getTomorrowText());
+        sendMarkdownMessage(chatId, getTomorrowText(chatId));
     }
 
     private void sendAllSchedules(long chatId) {
-        sendMarkdownMessage(chatId, getAllSchedulesText());
+        sendMarkdownMessage(chatId, getAllSchedulesText(chatId));
     }
 
     // === Methods for getting text ===
 
-    private String getTodayText() {
+    private String getTodayText(long chatId) {
         if (!parser.hasCachedData()) {
             return "⏳ Дані завантажуються, спробуйте через хвилину...";
         }
         DailySchedule schedule = parser.getTodaySchedule();
         if (schedule != null) {
-            return "📅 *Графік на сьогодні*\n\n" + schedule.formatAll();
+            String userQueue = userSettings.getUserQueue(chatId);
+            return "📅 *Графік на сьогодні*\n\n" + schedule.formatAll(userQueue);
         }
         return "❌ Не вдалося отримати графік на сьогодні.";
     }
 
-    private String getTomorrowText() {
+    private String getTomorrowText(long chatId) {
         if (!parser.hasCachedData()) {
             return "⏳ Дані завантажуються, спробуйте через хвилину...";
         }
         DailySchedule schedule = parser.getTomorrowSchedule();
         if (schedule != null) {
-            return "📆 *Графік на завтра*\n\n" + schedule.formatAll();
+            String userQueue = userSettings.getUserQueue(chatId);
+            return "📆 *Графік на завтра*\n\n" + schedule.formatAll(userQueue);
         }
         return "❌ Графік на завтра ще недоступний.";
     }
 
-    private String getAllSchedulesText() {
+    private String getAllSchedulesText(long chatId) {
         if (!parser.hasCachedData()) {
             return "⏳ Дані завантажуються, спробуйте через хвилину...";
         }
@@ -235,9 +237,10 @@ public class ElectroBot extends TelegramLongPollingBot {
         if (schedules.isEmpty()) {
             return "❌ Графіки не знайдено.";
         }
+        String userQueue = userSettings.getUserQueue(chatId);
         StringBuilder sb = new StringBuilder("📊 *Всі графіки:*\n\n");
         for (DailySchedule schedule : schedules) {
-            sb.append(schedule.formatAll()).append("\n");
+            sb.append(schedule.formatAll(userQueue)).append("\n");
         }
         return sb.toString();
     }
