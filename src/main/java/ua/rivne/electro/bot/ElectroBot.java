@@ -17,6 +17,8 @@ import ua.rivne.electro.service.DatabaseService;
 import ua.rivne.electro.service.NotificationService;
 import ua.rivne.electro.service.UserSettingsService;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -93,6 +95,9 @@ public class ElectroBot extends TelegramLongPollingBot {
                     break;
                 case "/stats":
                     sendStats(chatId);
+                    break;
+                case "/debug":
+                    sendDebugInfo(chatId);
                     break;
                 default:
                     sendMessage(chatId, "🤔 Невідома команда. Напишіть /help для списку команд.");
@@ -306,6 +311,59 @@ public class ElectroBot extends TelegramLongPollingBot {
         }
     }
 
+    /**
+     * Sends debug info for troubleshooting notifications (admin only).
+     */
+    private void sendDebugInfo(long chatId) {
+        if (!config.isAdmin(chatId)) {
+            sendMessage(chatId, "⛔ Ця команда доступна тільки адміністратору.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("🔧 *Debug Info*\n\n");
+
+        // Your settings
+        String myQueue = userSettings.getUserQueue(chatId);
+        boolean myNotifications = userSettings.isNotificationsEnabled(chatId);
+        sb.append("*Ваші налаштування:*\n");
+        sb.append(String.format("• Chat ID: `%d`\n", chatId));
+        sb.append(String.format("• Черга: %s\n", myQueue != null ? myQueue : "не обрана"));
+        sb.append(String.format("• Сповіщення: %s\n\n", myNotifications ? "✅ увімкнено" : "❌ вимкнено"));
+
+        // Users with notifications
+        java.util.Set<Long> usersWithNotifications = userSettings.getUsersWithNotifications();
+        sb.append(String.format("*Користувачі з сповіщеннями:* %d\n", usersWithNotifications.size()));
+        for (Long userId : usersWithNotifications) {
+            String queue = userSettings.getUserQueue(userId);
+            sb.append(String.format("• `%d` → %s\n", userId, queue != null ? queue : "без черги"));
+        }
+        sb.append("\n");
+
+        // Today's schedule
+        var todaySchedule = parser.getTodaySchedule();
+        sb.append("*Графік на сьогодні:*\n");
+        if (todaySchedule != null && todaySchedule.hasData()) {
+            sb.append(String.format("• Дата: %s\n", todaySchedule.getDate()));
+            if (myQueue != null) {
+                var hours = todaySchedule.getHoursForQueue(myQueue);
+                sb.append(String.format("• Години для %s: %s\n", myQueue,
+                    hours != null && !hours.isEmpty() ? String.join(", ", hours) : "немає"));
+            }
+        } else {
+            sb.append("• Дані відсутні!\n");
+        }
+        sb.append("\n");
+
+        // Cache info
+        var lastUpdate = parser.getLastCacheUpdate();
+        sb.append("*Кеш:*\n");
+        sb.append(String.format("• Останнє оновлення: %s\n", lastUpdate != null ? lastUpdate.toString() : "ніколи"));
+        sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "так" : "ні"));
+
+        sendMarkdownMessage(chatId, sb.toString());
+    }
+
     private void sendTodaySchedule(long chatId) {
         sendMarkdownMessage(chatId, getTodayText(chatId));
     }
@@ -320,6 +378,19 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     // === Methods for getting text ===
 
+    private static final DateTimeFormatter UPDATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy 'о' HH:mm");
+
+    /**
+     * Returns formatted string with last cache update time.
+     */
+    private String getLastUpdateText() {
+        LocalDateTime lastUpdate = parser.getLastCacheUpdate();
+        if (lastUpdate != null) {
+            return "\n\n_Дані оновлено " + lastUpdate.format(UPDATE_TIME_FORMAT) + "_";
+        }
+        return "";
+    }
+
     private String getTodayText(long chatId) {
         if (!parser.hasCachedData()) {
             return "⏳ Дані завантажуються, спробуйте через хвилину...";
@@ -327,7 +398,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         DailySchedule schedule = parser.getTodaySchedule();
         if (schedule != null) {
             String userQueue = userSettings.getUserQueue(chatId);
-            return "📅 *Графік на сьогодні*\n\n" + schedule.formatAll(userQueue);
+            return "📅 *Графік на сьогодні*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
         }
         return "❌ Не вдалося отримати графік на сьогодні.";
     }
@@ -339,7 +410,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         DailySchedule schedule = parser.getTomorrowSchedule();
         if (schedule != null) {
             String userQueue = userSettings.getUserQueue(chatId);
-            return "📆 *Графік на завтра*\n\n" + schedule.formatAll(userQueue);
+            return "📆 *Графік на завтра*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
         }
         return "❌ Графік на завтра ще недоступний.";
     }
@@ -357,6 +428,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         for (DailySchedule schedule : schedules) {
             sb.append(schedule.formatAll(userQueue)).append("\n");
         }
+        sb.append(getLastUpdateText());
         return sb.toString();
     }
 
