@@ -175,7 +175,12 @@ public class ScheduleParser {
 
                     // Columns 1-12 - hours for each sub-queue
                     for (int j = 0; j < QUEUE_NAMES.length && j + 1 < cells.size(); j++) {
-                        String hoursText = cells.get(j + 1).text().trim();
+                        // Use html() to preserve <br> tags, then convert to newlines
+                        String hoursHtml = cells.get(j + 1).html();
+                        String hoursText = hoursHtml
+                            .replaceAll("<br\\s*/?>", "\n")  // Convert <br> to newline
+                            .replaceAll("<[^>]+>", "")       // Remove other HTML tags
+                            .trim();
                         List<String> hours = parseHours(hoursText);
                         dailySchedule.addQueueHours(QUEUE_NAMES[j], hours);
                     }
