@@ -25,6 +25,7 @@ public class KeyboardFactory {
     public static final String CB_FEEDBACK = "feedback";
     public static final String CB_LIKE = "like";
     public static final String CB_CLEAR_NOTIFICATIONS = "clear_notifications";
+    public static final String CB_CLOSE_STATS = "close_stats";
 
     /**
      * Main menu keyboard (without optional buttons).
@@ -163,6 +164,17 @@ public class KeyboardFactory {
     public static InlineKeyboardMarkup backToMenuButton() {
         return InlineKeyboardMarkup.builder()
             .keyboard(List.of(List.of(button("⬅️ Меню", CB_BACK))))
+            .build();
+    }
+
+    /**
+     * Keyboard for stats message with close button.
+     */
+    public static InlineKeyboardMarkup statsKeyboard() {
+        return InlineKeyboardMarkup.builder()
+            .keyboard(List.of(
+                List.of(button("❌ Закрити", CB_CLOSE_STATS))
+            ))
             .build();
     }
 
