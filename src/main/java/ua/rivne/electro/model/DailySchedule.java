@@ -79,6 +79,16 @@ public class DailySchedule {
      * Formats schedule for all queues.
      */
     public String formatAll() {
+        return formatAll(null);
+    }
+
+    /**
+     * Formats schedule for all queues with highlighting for user's queue.
+     * Hours for the user's queue will be displayed in italic.
+     *
+     * @param userQueue user's selected queue (can be null)
+     */
+    public String formatAll(String userQueue) {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("📅 *%s*\n\n", date));
 
@@ -100,7 +110,12 @@ public class DailySchedule {
                 hoursStr = String.join(", ", hours);
             }
 
-            sb.append(String.format("*%s:* %s\n", queue, hoursStr));
+            // Highlight hours for user's queue with italic
+            if (queue.equals(userQueue) && hours != null && !hours.isEmpty()) {
+                sb.append(String.format("*%s:* _%s_\n", queue, hoursStr));
+            } else {
+                sb.append(String.format("*%s:* %s\n", queue, hoursStr));
+            }
         }
 
         return sb.toString();
