@@ -24,7 +24,7 @@ public class NotificationService {
     private static final int CHECK_INTERVAL_MINUTES = 1; // Check every minute for accuracy
 
     // Notification intervals (minutes before outage)
-    private static final int[] NOTIFY_BEFORE_MINUTES = {70, 30, 5};
+    private static final int[] NOTIFY_BEFORE_MINUTES = {65, 5};
 
     private final ScheduleParser parser;
     private final UserSettingsService userSettings;
