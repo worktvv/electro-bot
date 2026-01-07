@@ -33,11 +33,18 @@
             <version>1.17.2</version>
         </dependency>
 
-        <!-- SQLite для бази даних -->
+        <!-- PostgreSQL для бази даних -->
         <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.45.1.0</version>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.1</version>
+        </dependency>
+
+        <!-- HikariCP для connection pooling -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.1.0</version>
         </dependency>
 
         <!-- SLF4J для логування -->
@@ -92,4 +99,3 @@
         </plugins>
     </build>
 </project>
-
