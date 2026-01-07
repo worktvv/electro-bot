@@ -347,8 +347,24 @@ public class ElectroBot extends TelegramLongPollingBot {
             sb.append(String.format("• Дата: %s\n", todaySchedule.getDate()));
             if (myQueue != null) {
                 var hours = todaySchedule.getHoursForQueue(myQueue);
-                sb.append(String.format("• Години для %s: %s\n", myQueue,
-                    hours != null && !hours.isEmpty() ? String.join(", ", hours) : "немає"));
+                sb.append(String.format("• Години для %s:\n", myQueue));
+                if (hours != null && !hours.isEmpty()) {
+                    for (String hour : hours) {
+                        // Show raw value and parsed start time
+                        String startParsed = "?";
+                        try {
+                            String startStr = hour.split("-")[0].trim();
+                            var parsed = java.time.LocalTime.parse(startStr,
+                                java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                            startParsed = parsed.toString();
+                        } catch (Exception e) {
+                            startParsed = "ERROR: " + e.getMessage();
+                        }
+                        sb.append(String.format("  `%s` → start: %s\n", hour, startParsed));
+                    }
+                } else {
+                    sb.append("  немає\n");
+                }
             }
         } else {
             sb.append("• Дані відсутні!\n");
