@@ -12,14 +12,16 @@ public class Config {
     private final String botToken;
     private final String botUsername;
     private final String databaseUrl;
+    private final Long adminChatId;
 
     // URL of the power outage schedule page
     public static final String SCHEDULE_URL = "https://www.roe.vsei.ua/disconnections";
 
-    private Config(String botToken, String botUsername, String databaseUrl) {
+    private Config(String botToken, String botUsername, String databaseUrl, Long adminChatId) {
         this.botToken = botToken;
         this.botUsername = botUsername;
         this.databaseUrl = databaseUrl;
+        this.adminChatId = adminChatId;
     }
 
     /**
@@ -31,22 +33,24 @@ public class Config {
         String token = System.getenv("BOT_TOKEN");
         String username = System.getenv("BOT_USERNAME");
         String databaseUrl = System.getenv("DATABASE_URL");
+        String adminChatIdStr = System.getenv("ADMIN_CHAT_ID");
 
         // If not in system env - read from .env (for local development)
-        if (token == null || username == null || databaseUrl == null) {
-            Dotenv dotenv = Dotenv.configure()
-                    .ignoreIfMissing()
-                    .load();
+        Dotenv dotenv = Dotenv.configure()
+                .ignoreIfMissing()
+                .load();
 
-            if (token == null) {
-                token = dotenv.get("BOT_TOKEN");
-            }
-            if (username == null) {
-                username = dotenv.get("BOT_USERNAME");
-            }
-            if (databaseUrl == null) {
-                databaseUrl = dotenv.get("DATABASE_URL");
-            }
+        if (token == null) {
+            token = dotenv.get("BOT_TOKEN");
+        }
+        if (username == null) {
+            username = dotenv.get("BOT_USERNAME");
+        }
+        if (databaseUrl == null) {
+            databaseUrl = dotenv.get("DATABASE_URL");
+        }
+        if (adminChatIdStr == null) {
+            adminChatIdStr = dotenv.get("ADMIN_CHAT_ID");
         }
 
         if (token == null || token.isEmpty()) {
@@ -70,7 +74,17 @@ public class Config {
             );
         }
 
-        return new Config(token, username, databaseUrl);
+        // ADMIN_CHAT_ID is optional
+        Long adminChatId = null;
+        if (adminChatIdStr != null && !adminChatIdStr.isEmpty()) {
+            try {
+                adminChatId = Long.parseLong(adminChatIdStr);
+            } catch (NumberFormatException e) {
+                System.err.println("⚠️ Invalid ADMIN_CHAT_ID format, ignoring: " + adminChatIdStr);
+            }
+        }
+
+        return new Config(token, username, databaseUrl, adminChatId);
     }
 
     public String getBotToken() {
@@ -83,6 +97,14 @@ public class Config {
 
     public String getDatabaseUrl() {
         return databaseUrl;
+    }
+
+    public Long getAdminChatId() {
+        return adminChatId;
+    }
+
+    public boolean isAdmin(long chatId) {
+        return adminChatId != null && adminChatId == chatId;
     }
 }
 
