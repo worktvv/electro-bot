@@ -129,7 +129,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         if (data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             handleCloseStats(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_NOTIFICATION_MENU)) {
-            handleNotificationMenu(chatId);
+            handleNotificationMenu(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_TODAY)) {
             editMessageWithSchedule(chatId, messageId, getTodayText(chatId));
         } else if (data.equals(KeyboardFactory.CB_TOMORROW)) {
@@ -570,8 +570,17 @@ public class ElectroBot extends TelegramLongPollingBot {
     /**
      * Handles notification menu button - clears all notifications and sends main menu.
      */
-    private void handleNotificationMenu(long chatId) {
+    private void handleNotificationMenu(long chatId, int messageId) {
         clearNotifications(chatId);
+        // Also delete the message with the menu button itself
+        try {
+            execute(DeleteMessage.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .build());
+        } catch (TelegramApiException e) {
+            // Message may already be deleted
+        }
         sendMainMenu(chatId);
     }
 
