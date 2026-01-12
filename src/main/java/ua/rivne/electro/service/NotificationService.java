@@ -24,7 +24,7 @@ public class NotificationService {
     private static final int CHECK_INTERVAL_MINUTES = 1; // Check every minute for accuracy
 
     // Notification intervals (minutes before outage)
-    private static final int[] NOTIFY_BEFORE_MINUTES = {77, 30, 5};
+    private static final int[] NOTIFY_BEFORE_MINUTES = {30, 5};
 
     private final ScheduleParser parser;
     private final UserSettingsService userSettings;
@@ -33,16 +33,8 @@ public class NotificationService {
     // Track sent notifications: "chatId:hourRange:minutesBefore:date"
     private final Set<String> sentNotifications = ConcurrentHashMap.newKeySet();
 
-    // Callback for sending messages (chatId, message, isLast) -> returns messageId
-    private NotificationMessageSender messageSender;
-
-    /**
-     * Functional interface for sending notification messages.
-     */
-    @FunctionalInterface
-    public interface NotificationMessageSender {
-        Integer send(long chatId, String message, boolean isLast);
-    }
+    // Callback for sending messages (chatId, message) -> returns messageId
+    private java.util.function.BiFunction<Long, String, Integer> messageSender;
 
     public NotificationService(ScheduleParser parser, UserSettingsService userSettings) {
         this.parser = parser;
@@ -54,7 +46,7 @@ public class NotificationService {
      * Sets callback for sending messages.
      * The function should return the message ID of the sent message.
      */
-    public void setMessageSender(NotificationMessageSender sender) {
+    public void setMessageSender(java.util.function.BiFunction<Long, String, Integer> sender) {
         this.messageSender = sender;
     }
 
@@ -111,42 +103,17 @@ public class NotificationService {
                 continue; // Data pending
             }
 
-            // Collect all notifications for this user first
-            java.util.List<NotificationData> pendingNotifications = new java.util.ArrayList<>();
             for (String hourRange : hours) {
-                collectNotification(chatId, queue, hourRange, now, today, pendingNotifications);
-            }
-
-            // Send all notifications, marking the last one
-            for (int i = 0; i < pendingNotifications.size(); i++) {
-                NotificationData data = pendingNotifications.get(i);
-                boolean isLast = (i == pendingNotifications.size() - 1);
-                sendNotification(data, isLast);
+                checkAndSendNotification(chatId, queue, hourRange, now, today);
             }
         }
     }
 
     /**
-     * Data class for pending notification.
+     * Checks and sends notification for a specific time range.
      */
-    private static class NotificationData {
-        final long chatId;
-        final String message;
-        final String notificationKey;
-
-        NotificationData(long chatId, String message, String notificationKey) {
-            this.chatId = chatId;
-            this.message = message;
-            this.notificationKey = notificationKey;
-        }
-    }
-
-    /**
-     * Collects notification for a specific time range if needed.
-     */
-    private void collectNotification(long chatId, String queue, String hourRange,
-                                     LocalTime now, LocalDate today,
-                                     java.util.List<NotificationData> pendingNotifications) {
+    private void checkAndSendNotification(long chatId, String queue, String hourRange,
+                                          LocalTime now, LocalDate today) {
         LocalTime startTime = parseStartTime(hourRange);
         if (startTime == null || !startTime.isAfter(now)) {
             return; // Time already passed or parsing error
@@ -160,8 +127,8 @@ public class NotificationService {
                 String notificationKey = buildNotificationKey(chatId, hourRange, notifyMinutes, today);
 
                 // Check if already sent this notification
-                if (!sentNotifications.contains(notificationKey)) {
-                    System.out.println("🔔 Preparing notification for " + chatId + " (" + notifyMinutes + " min before " + hourRange + ")");
+                if (sentNotifications.add(notificationKey)) {
+                    System.out.println("🔔 Sending notification to " + chatId + " (" + notifyMinutes + " min before " + hourRange + ")");
                     String emoji = notifyMinutes <= 5 ? "🚨" : "⚠️";
                     String urgency = notifyMinutes <= 5 ? "ТЕРМІНОВО! " : "";
 
@@ -173,22 +140,12 @@ public class NotificationService {
                         "Підготуйтесь заздалегідь!",
                         emoji, urgency, notifyMinutes, queue, hourRange
                     );
-                    pendingNotifications.add(new NotificationData(chatId, message, notificationKey));
+                    Integer messageId = messageSender.apply(chatId, message);
+                    if (messageId != null) {
+                        userSettings.addNotificationMessageId(chatId, messageId);
+                    }
                 }
             }
-        }
-    }
-
-    /**
-     * Sends a notification and marks it as sent.
-     */
-    private void sendNotification(NotificationData data, boolean isLast) {
-        // Mark as sent before sending to avoid duplicates
-        sentNotifications.add(data.notificationKey);
-
-        Integer messageId = messageSender.send(data.chatId, data.message, isLast);
-        if (messageId != null) {
-            userSettings.addNotificationMessageId(data.chatId, messageId);
         }
     }
 
@@ -229,4 +186,3 @@ public class NotificationService {
         sentNotifications.removeIf(key -> !key.endsWith(todayStr));
     }
 }
-
