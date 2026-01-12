@@ -119,13 +119,17 @@ public class ElectroBot extends TelegramLongPollingBot {
         // Log button event
         databaseService.logEvent(chatId, "button", data);
 
-        // Clear notifications and stats on any button press (except clear/close buttons)
-        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS) && !data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
+        // Clear notifications and stats on any button press (except clear/close/notification_menu buttons)
+        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS)
+            && !data.equals(KeyboardFactory.CB_CLOSE_STATS)
+            && !data.equals(KeyboardFactory.CB_NOTIFICATION_MENU)) {
             clearNotifications(chatId);
         }
 
         if (data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             handleCloseStats(chatId, messageId);
+        } else if (data.equals(KeyboardFactory.CB_NOTIFICATION_MENU)) {
+            handleNotificationMenu(chatId);
         } else if (data.equals(KeyboardFactory.CB_TODAY)) {
             editMessageWithSchedule(chatId, messageId, getTodayText(chatId));
         } else if (data.equals(KeyboardFactory.CB_TOMORROW)) {
@@ -564,6 +568,14 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     /**
+     * Handles notification menu button - clears all notifications and sends main menu.
+     */
+    private void handleNotificationMenu(long chatId) {
+        clearNotifications(chatId);
+        sendMainMenu(chatId);
+    }
+
+    /**
      * Clears all notification messages for user.
      */
     private void clearNotifications(long chatId) {
@@ -582,12 +594,16 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Sends notification message and returns its ID.
+     * If isLast is true, adds a "Menu" button to close all notifications.
      */
-    private Integer sendNotificationMessage(long chatId, String text) {
+    private Integer sendNotificationMessage(long chatId, String text, boolean isLast) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
         message.setParseMode("Markdown");
+        if (isLast) {
+            message.setReplyMarkup(KeyboardFactory.notificationKeyboard());
+        }
         try {
             Message sent = execute(message);
             return sent.getMessageId();
