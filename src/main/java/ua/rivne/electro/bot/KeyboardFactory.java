@@ -26,7 +26,6 @@ public class KeyboardFactory {
     public static final String CB_LIKE = "like";
     public static final String CB_CLEAR_NOTIFICATIONS = "clear_notifications";
     public static final String CB_CLOSE_STATS = "close_stats";
-    public static final String CB_NOTIFICATION_MENU = "notification_menu";
 
     /**
      * Main menu keyboard (without optional buttons).
@@ -180,17 +179,6 @@ public class KeyboardFactory {
     }
 
     /**
-     * Keyboard for notification message with menu button.
-     */
-    public static InlineKeyboardMarkup notificationKeyboard() {
-        return InlineKeyboardMarkup.builder()
-            .keyboard(List.of(
-                List.of(button("📋 Меню", CB_NOTIFICATION_MENU))
-            ))
-            .build();
-    }
-
-    /**
      * Creates a button.
      */
     private static InlineKeyboardButton button(String text, String callbackData) {
@@ -200,4 +188,3 @@ public class KeyboardFactory {
             .build();
     }
 }
-
