@@ -119,17 +119,13 @@ public class ElectroBot extends TelegramLongPollingBot {
         // Log button event
         databaseService.logEvent(chatId, "button", data);
 
-        // Clear notifications and stats on any button press (except clear/close/notification_menu buttons)
-        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS)
-            && !data.equals(KeyboardFactory.CB_CLOSE_STATS)
-            && !data.equals(KeyboardFactory.CB_NOTIFICATION_MENU)) {
+        // Clear notifications and stats on any button press (except clear/close buttons)
+        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS) && !data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             clearNotifications(chatId);
         }
 
         if (data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             handleCloseStats(chatId, messageId);
-        } else if (data.equals(KeyboardFactory.CB_NOTIFICATION_MENU)) {
-            handleNotificationMenu(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_TODAY)) {
             editMessageWithSchedule(chatId, messageId, getTodayText(chatId));
         } else if (data.equals(KeyboardFactory.CB_TOMORROW)) {
@@ -209,7 +205,6 @@ public class ElectroBot extends TelegramLongPollingBot {
     private void sendMainMenu(long chatId) {
         boolean showFeedback = !userSettings.hasLiked(chatId);
         boolean showClearNotifications = userSettings.hasNotifications(chatId);
-        // sendMessageWithKeyboard will clear old menus and save new menu ID
         sendMessageWithKeyboard(chatId, "📋 *Головне меню*\n\nОберіть дію:", KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
     }
 
@@ -569,47 +564,6 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     /**
-     * Handles notification menu button - clears all notifications and sends main menu.
-     */
-    private void handleNotificationMenu(long chatId, int messageId) {
-        // Clear all old notifications/menus
-        clearNotifications(chatId);
-
-        // Delete the message with the menu button itself (in case it wasn't in the list)
-        try {
-            execute(DeleteMessage.builder()
-                .chatId(chatId)
-                .messageId(messageId)
-                .build());
-        } catch (TelegramApiException e) {
-            // Message may already be deleted
-        }
-
-        // Send new menu (without clearing again)
-        sendMainMenuWithoutClearing(chatId);
-    }
-
-    /**
-     * Sends main menu without clearing old messages (used after manual clearing).
-     */
-    private void sendMainMenuWithoutClearing(long chatId) {
-        boolean showFeedback = !userSettings.hasLiked(chatId);
-        boolean showClearNotifications = userSettings.hasNotifications(chatId);
-
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId);
-        message.setText("📋 *Головне меню*\n\nОберіть дію:");
-        message.setParseMode("Markdown");
-        message.setReplyMarkup(KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
-        try {
-            Message sent = execute(message);
-            userSettings.addNotificationMessageId(chatId, sent.getMessageId());
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
      * Clears all notification messages for user.
      */
     private void clearNotifications(long chatId) {
@@ -628,16 +582,12 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Sends notification message and returns its ID.
-     * If isLast is true, adds a "Menu" button to close all notifications.
      */
-    private Integer sendNotificationMessage(long chatId, String text, boolean isLast) {
+    private Integer sendNotificationMessage(long chatId, String text) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
         message.setParseMode("Markdown");
-        if (isLast) {
-            message.setReplyMarkup(KeyboardFactory.notificationKeyboard());
-        }
         try {
             Message sent = execute(message);
             return sent.getMessageId();
@@ -673,18 +623,13 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     private void sendMessageWithKeyboard(long chatId, String text, InlineKeyboardMarkup keyboard) {
-        // First, clear old menus/notifications
-        clearNotifications(chatId);
-
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
         message.setParseMode("Markdown");
         message.setReplyMarkup(keyboard);
         try {
-            Message sent = execute(message);
-            // Save message ID so it can be deleted later
-            userSettings.addNotificationMessageId(chatId, sent.getMessageId());
+            execute(message);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
@@ -728,4 +673,3 @@ public class ElectroBot extends TelegramLongPollingBot {
         return "користувачам";
     }
 }
-
