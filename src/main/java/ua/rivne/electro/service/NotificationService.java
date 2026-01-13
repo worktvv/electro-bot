@@ -4,16 +4,17 @@ import ua.rivne.electro.model.DailySchedule;
 import ua.rivne.electro.parser.ScheduleParser;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * Service for sending power outage notifications.
@@ -78,14 +79,9 @@ public class NotificationService {
             return;
         }
 
-        DailySchedule todaySchedule = parser.getTodaySchedule();
-        if (todaySchedule == null || !todaySchedule.hasData()) {
-            return;
-        }
-
         // Use Kyiv timezone
-        LocalTime now = LocalTime.now(KYIV_ZONE);
-        LocalDate today = LocalDate.now(KYIV_ZONE);
+        LocalDateTime now = LocalDateTime.now(KYIV_ZONE);
+        LocalDate today = now.toLocalDate();
 
         // Clean old notifications (from previous days)
         cleanOldNotifications(today);
@@ -98,37 +94,70 @@ public class NotificationService {
                 continue;
             }
 
-            List<String> hours = todaySchedule.getHoursForQueue(queue);
-            if (hours == null || hours.isEmpty()) {
-                continue; // Data pending
+            // Check today's schedule
+            DailySchedule todaySchedule = parser.getTodaySchedule();
+            if (todaySchedule != null && todaySchedule.hasData()) {
+                List<String> hours = todaySchedule.getHoursForQueue(queue);
+                if (hours != null && !hours.isEmpty()) {
+                    for (String hourRange : hours) {
+                        checkAndSendNotification(chatId, queue, hourRange, now, today);
+                    }
+                }
             }
 
-            for (String hourRange : hours) {
-                checkAndSendNotification(chatId, queue, hourRange, now, today);
+            // Check tomorrow's schedule for midnight outages (00:00 - 01:00)
+            // This handles notifications at 23:30 and 23:55 for 00:00 outages
+            DailySchedule tomorrowSchedule = parser.getTomorrowSchedule();
+            if (tomorrowSchedule != null && tomorrowSchedule.hasData()) {
+                List<String> tomorrowHours = tomorrowSchedule.getHoursForQueue(queue);
+                if (tomorrowHours != null && !tomorrowHours.isEmpty()) {
+                    LocalDate tomorrow = today.plusDays(1);
+                    for (String hourRange : tomorrowHours) {
+                        // Only check early morning outages (before 02:00)
+                        LocalTime startTime = parseStartTime(hourRange);
+                        if (startTime != null && startTime.getHour() < 2) {
+                            checkAndSendNotification(chatId, queue, hourRange, now, tomorrow);
+                        }
+                    }
+                }
             }
         }
     }
 
     /**
      * Checks and sends notification for a specific time range.
+     *
+     * @param chatId user's chat ID
+     * @param queue user's queue
+     * @param hourRange time range string (e.g., "00:00 - 04:00")
+     * @param now current date and time
+     * @param outageDate the date when the outage is scheduled (can be today or tomorrow)
      */
     private void checkAndSendNotification(long chatId, String queue, String hourRange,
-                                          LocalTime now, LocalDate today) {
+                                          LocalDateTime now, LocalDate outageDate) {
         LocalTime startTime = parseStartTime(hourRange);
-        if (startTime == null || !startTime.isAfter(now)) {
-            return; // Time already passed or parsing error
+        if (startTime == null) {
+            return; // Parsing error
         }
 
-        long minutesUntil = java.time.Duration.between(now, startTime).toMinutes();
+        // Create full datetime for the outage
+        LocalDateTime outageDateTime = LocalDateTime.of(outageDate, startTime);
+
+        // Check if outage time is in the future
+        if (!outageDateTime.isAfter(now)) {
+            return; // Time already passed
+        }
+
+        long minutesUntil = Duration.between(now, outageDateTime).toMinutes();
 
         for (int notifyMinutes : NOTIFY_BEFORE_MINUTES) {
             // Check if time is within notification interval (with ±2 min tolerance)
             if (minutesUntil <= notifyMinutes && minutesUntil > notifyMinutes - 3) {
-                String notificationKey = buildNotificationKey(chatId, hourRange, notifyMinutes, today);
+                String notificationKey = buildNotificationKey(chatId, hourRange, notifyMinutes, outageDate);
 
                 // Check if already sent this notification
                 if (sentNotifications.add(notificationKey)) {
-                    System.out.println("🔔 Sending notification to " + chatId + " (" + notifyMinutes + " min before " + hourRange + ")");
+                    System.out.println("🔔 Sending notification to " + chatId + " (" + notifyMinutes + " min before " + hourRange + " on " + outageDate + ")");
                     String emoji = notifyMinutes <= 5 ? "🚨" : "⚠️";
                     String urgency = notifyMinutes <= 5 ? "ТЕРМІНОВО! " : "";
 
@@ -152,8 +181,9 @@ public class NotificationService {
     /**
      * Parses start time from time range.
      * Handles formats: "13:00 - 17:00", "13:00-17:00", "8:00 - 12:00"
+     * Package-private for testing.
      */
-    private LocalTime parseStartTime(String hourRange) {
+    LocalTime parseStartTime(String hourRange) {
         try {
             // Split by dash (with or without spaces)
             String startTimeStr = hourRange.split("\\s*-\\s*")[0].trim();
@@ -180,9 +210,12 @@ public class NotificationService {
 
     /**
      * Cleans notifications from previous days.
+     * Keeps today's and tomorrow's notifications.
      */
     private void cleanOldNotifications(LocalDate today) {
         String todayStr = today.toString();
-        sentNotifications.removeIf(key -> !key.endsWith(todayStr));
+        String tomorrowStr = today.plusDays(1).toString();
+        sentNotifications.removeIf(key -> !key.endsWith(todayStr) && !key.endsWith(tomorrowStr));
     }
 }
+
