@@ -201,8 +201,9 @@ public class ScheduleParser {
      * - "08:00 - 12:00, 20:00 - 23:59" (comma separated)
      * - "08:00 - 12:00\n20:00 - 23:59" (newline separated)
      * - "08:00 - 12:0020:00 - 23:59" (no separator)
+     * Package-private for testing.
      */
-    private List<String> parseHours(String text) {
+    List<String> parseHours(String text) {
         List<String> hours = new ArrayList<>();
 
         if (text == null || text.isEmpty()) {
@@ -236,8 +237,9 @@ public class ScheduleParser {
     /**
      * Normalizes time range to consistent format "HH:MM - HH:MM".
      * Handles: "13:00-17:00", "13:00 -17:00", "13:00- 17:00", "13:00 - 17:00"
+     * Package-private for testing.
      */
-    private String normalizeTimeRange(String range) {
+    String normalizeTimeRange(String range) {
         // Remove extra spaces and normalize dashes
         String cleaned = range.trim()
             .replaceAll("\\s*-\\s*", " - ")  // Normalize "HH:MM-HH:MM" to "HH:MM - HH:MM"
