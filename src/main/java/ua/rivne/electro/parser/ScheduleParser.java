@@ -24,34 +24,65 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Parser for fetching power outage schedules from roe.vsei.ua website.
- * Implements caching to reduce requests to the website.
+ * Parser for fetching power outage schedules from the ROE (Rivneoblenergo) website.
+ *
+ * <p>This class handles:
+ * <ul>
+ *   <li>Fetching HTML content from {@link Config#SCHEDULE_URL}</li>
+ *   <li>Parsing schedule tables into {@link DailySchedule} objects</li>
+ *   <li>Caching parsed data to minimize HTTP requests</li>
+ *   <li>Automatic cache refresh every 30 minutes</li>
+ * </ul>
+ *
+ * <p>The parser uses Jsoup for HTML parsing and handles SSL certificate issues
+ * that may occur with the source website.
+ *
+ * <p>Usage:
+ * <pre>{@code
+ * ScheduleParser parser = new ScheduleParser();
+ * parser.startCacheUpdater();  // Start background updates
+ * DailySchedule today = parser.getTodaySchedule();
+ * }</pre>
+ *
+ * @author Electro Bot Team
+ * @version 1.0
+ * @see DailySchedule
  */
 public class ScheduleParser {
 
-    // Sub-queue names in table order
+    /** Queue identifiers in the order they appear in the source table */
     private static final String[] QUEUE_NAMES = {
         "1.1", "1.2", "2.1", "2.2", "3.1", "3.2",
         "4.1", "4.2", "5.1", "5.2", "6.1", "6.2"
     };
 
-    // Cache settings
+    /** How often to refresh the cache (in minutes) */
     private static final int CACHE_UPDATE_INTERVAL_MINUTES = 30;
+
+    /** Timezone for date calculations */
     private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
+
+    /** Date format used in the source website */
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    // Cached data
     private volatile List<DailySchedule> cachedSchedules = Collections.emptyList();
     private volatile LocalDateTime lastCacheUpdate = null;
     private final ScheduledExecutorService cacheUpdater;
 
+    /**
+     * Creates a new ScheduleParser instance.
+     * Call {@link #startCacheUpdater()} to begin automatic cache updates.
+     */
     public ScheduleParser() {
         this.cacheUpdater = Executors.newSingleThreadScheduledExecutor();
     }
 
     /**
-     * Starts the cache update scheduler.
-     * Should be called once when the bot starts.
+     * Starts the background cache update scheduler.
+     *
+     * <p>This method should be called once when the bot starts.
+     * It performs an immediate cache refresh and then schedules
+     * updates every {@value #CACHE_UPDATE_INTERVAL_MINUTES} minutes.
      */
     public void startCacheUpdater() {
         // Initial fetch
