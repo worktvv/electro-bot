@@ -26,7 +26,6 @@ public class KeyboardFactory {
     public static final String CB_BACK = "back";
     public static final String CB_FEEDBACK = "feedback";
     public static final String CB_LIKE = "like";
-    public static final String CB_CLEAR_NOTIFICATIONS = "clear_notifications";
     public static final String CB_CLOSE_STATS = "close_stats";
 
     // Button text constants for reply keyboard (used for matching incoming messages)
@@ -34,8 +33,8 @@ public class KeyboardFactory {
     public static final String BTN_TOMORROW = "📆 Завтра";
     public static final String BTN_ALL = "📊 Всі графіки";
     public static final String BTN_MY_QUEUE = "🔌 Моя черга";
-    public static final String BTN_NOTIFICATIONS = "🔔 Сповіщення";
-    public static final String BTN_ABOUT = "ℹ️ Про бота";
+    public static final String BTN_NOTIFICATIONS = "🔔";
+    public static final String BTN_ABOUT = "ℹ️";
 
     /**
      * Creates persistent reply keyboard (bottom menu).
@@ -55,16 +54,12 @@ public class KeyboardFactory {
         row2.add(BTN_ALL);
         keyboard.add(row2);
 
-        // Third row: My queue and Notifications
+        // Third row: Notifications, My queue, About (My queue in the middle)
         KeyboardRow row3 = new KeyboardRow();
-        row3.add(BTN_MY_QUEUE);
         row3.add(BTN_NOTIFICATIONS);
+        row3.add(BTN_MY_QUEUE);
+        row3.add(BTN_ABOUT);
         keyboard.add(row3);
-
-        // Fourth row: About
-        KeyboardRow row4 = new KeyboardRow();
-        row4.add(BTN_ABOUT);
-        keyboard.add(row4);
 
         return ReplyKeyboardMarkup.builder()
             .keyboard(keyboard)
@@ -77,15 +72,14 @@ public class KeyboardFactory {
      * Main menu keyboard (without optional buttons).
      */
     public static InlineKeyboardMarkup mainMenu() {
-        return mainMenu(false, false);
+        return mainMenu(false);
     }
 
     /**
      * Main menu keyboard.
      * @param showFeedback whether to show feedback button
-     * @param showClearNotifications whether to show clear notifications button
      */
-    public static InlineKeyboardMarkup mainMenu(boolean showFeedback, boolean showClearNotifications) {
+    public static InlineKeyboardMarkup mainMenu(boolean showFeedback) {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
         // First row
@@ -114,13 +108,6 @@ public class KeyboardFactory {
         if (showFeedback) {
             keyboard.add(List.of(
                 button("💬 Цей бот корисний?", CB_FEEDBACK)
-            ));
-        }
-
-        // Sixth row - clear notifications (only if user has pending notifications)
-        if (showClearNotifications) {
-            keyboard.add(List.of(
-                button("🧹 Очистити сповіщення", CB_CLEAR_NOTIFICATIONS)
             ));
         }
 
