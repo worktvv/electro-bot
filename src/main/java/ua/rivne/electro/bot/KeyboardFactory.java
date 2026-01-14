@@ -1,17 +1,19 @@
 package ua.rivne.electro.bot;
 
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Factory for creating inline keyboards.
+ * Factory for creating keyboards.
  */
 public class KeyboardFactory {
 
-    // Callback data constants
+    // Callback data constants for inline keyboards
     public static final String CB_TODAY = "today";
     public static final String CB_TOMORROW = "tomorrow";
     public static final String CB_ALL = "all";
@@ -26,6 +28,50 @@ public class KeyboardFactory {
     public static final String CB_LIKE = "like";
     public static final String CB_CLEAR_NOTIFICATIONS = "clear_notifications";
     public static final String CB_CLOSE_STATS = "close_stats";
+
+    // Button text constants for reply keyboard (used for matching incoming messages)
+    public static final String BTN_TODAY = "📅 Сьогодні";
+    public static final String BTN_TOMORROW = "📆 Завтра";
+    public static final String BTN_ALL = "📊 Всі графіки";
+    public static final String BTN_MY_QUEUE = "🔌 Моя черга";
+    public static final String BTN_NOTIFICATIONS = "🔔 Сповіщення";
+    public static final String BTN_ABOUT = "ℹ️ Про бота";
+
+    /**
+     * Creates persistent reply keyboard (bottom menu).
+     * This keyboard is always visible at the bottom of the screen.
+     */
+    public static ReplyKeyboardMarkup persistentMenu() {
+        List<KeyboardRow> keyboard = new ArrayList<>();
+
+        // First row: Today and Tomorrow
+        KeyboardRow row1 = new KeyboardRow();
+        row1.add(BTN_TODAY);
+        row1.add(BTN_TOMORROW);
+        keyboard.add(row1);
+
+        // Second row: All schedules
+        KeyboardRow row2 = new KeyboardRow();
+        row2.add(BTN_ALL);
+        keyboard.add(row2);
+
+        // Third row: My queue and Notifications
+        KeyboardRow row3 = new KeyboardRow();
+        row3.add(BTN_MY_QUEUE);
+        row3.add(BTN_NOTIFICATIONS);
+        keyboard.add(row3);
+
+        // Fourth row: About
+        KeyboardRow row4 = new KeyboardRow();
+        row4.add(BTN_ABOUT);
+        keyboard.add(row4);
+
+        return ReplyKeyboardMarkup.builder()
+            .keyboard(keyboard)
+            .resizeKeyboard(true)  // Resize to fit buttons
+            .isPersistent(true)    // Keep visible
+            .build();
+    }
 
     /**
      * Main menu keyboard (without optional buttons).
@@ -82,13 +128,12 @@ public class KeyboardFactory {
     }
 
     /**
-     * Feedback menu keyboard.
+     * Feedback menu keyboard (just like button, no back - use persistent menu).
      */
     public static InlineKeyboardMarkup feedbackMenu() {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
         keyboard.add(List.of(button("👍 Так, бот корисний!", CB_LIKE)));
-        keyboard.add(List.of(button("⬅️ Назад", CB_BACK)));
 
         return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
     }
@@ -135,14 +180,13 @@ public class KeyboardFactory {
             button("6.2", CB_SET_QUEUE + "6.2")
         ));
 
-        // Back button
-        keyboard.add(List.of(button("⬅️ Назад", CB_BACK)));
+        // No back button - use persistent menu instead
 
         return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
     }
 
     /**
-     * Notifications menu keyboard.
+     * Notifications menu keyboard (no back button - use persistent menu).
      */
     public static InlineKeyboardMarkup notificationsMenu(boolean isEnabled) {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
@@ -153,18 +197,9 @@ public class KeyboardFactory {
             keyboard.add(List.of(button("🔔 Увімкнути сповіщення", CB_NOTIFY_ON)));
         }
 
-        keyboard.add(List.of(button("⬅️ Назад", CB_BACK)));
+        // No back button - use persistent menu instead
 
         return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
-    }
-
-    /**
-     * "Back to menu" button.
-     */
-    public static InlineKeyboardMarkup backToMenuButton() {
-        return InlineKeyboardMarkup.builder()
-            .keyboard(List.of(List.of(button("⬅️ Меню", CB_BACK))))
-            .build();
     }
 
     /**
@@ -188,3 +223,4 @@ public class KeyboardFactory {
             .build();
     }
 }
+
