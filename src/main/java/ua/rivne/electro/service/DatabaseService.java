@@ -9,11 +9,44 @@ import java.util.Set;
 
 /**
  * Service for PostgreSQL database operations.
+ *
+ * <p>This service handles all database interactions including:
+ * <ul>
+ *   <li>User settings (queue selection, notification preferences)</li>
+ *   <li>Event logging for analytics</li>
+ *   <li>Statistics collection (users, likes, activity)</li>
+ * </ul>
+ *
+ * <p>Uses HikariCP for connection pooling with the following configuration:
+ * <ul>
+ *   <li>Maximum pool size: 5 connections</li>
+ *   <li>Minimum idle: 1 connection</li>
+ *   <li>Connection timeout: 30 seconds</li>
+ * </ul>
+ *
+ * <p>Database tables are created automatically on first run:
+ * <ul>
+ *   <li>{@code user_settings} - User preferences and queue selection</li>
+ *   <li>{@code bot_events} - Event logging for analytics</li>
+ *   <li>{@code notification_messages} - Sent notification tracking</li>
+ * </ul>
+ *
+ * @author Electro Bot Team
+ * @version 1.0
  */
 public class DatabaseService {
 
     private final HikariDataSource dataSource;
 
+    /**
+     * Creates a new DatabaseService and initializes the connection pool.
+     *
+     * <p>Supports Railway-style DATABASE_URL format:
+     * {@code postgresql://username:password@host:port/database}
+     *
+     * @param databaseUrl PostgreSQL connection URL
+     * @throws RuntimeException if database connection fails
+     */
     public DatabaseService(String databaseUrl) {
         HikariConfig config = new HikariConfig();
 
