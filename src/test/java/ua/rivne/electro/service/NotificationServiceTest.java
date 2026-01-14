@@ -15,7 +15,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -123,7 +123,7 @@ class NotificationServiceTest {
         void shouldHandleNullSchedule() {
             // Verify that service can be created and messageSender can be set
             // without throwing exceptions, even when parser might return null
-            BiFunction<Long, String, Integer> mockSender = mock(BiFunction.class);
+            BiConsumer<Long, String> mockSender = mock(BiConsumer.class);
 
             assertDoesNotThrow(() -> {
                 notificationService.setMessageSender(mockSender);
