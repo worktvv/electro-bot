@@ -9,6 +9,7 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ua.rivne.electro.config.Config;
 import ua.rivne.electro.model.DailySchedule;
@@ -73,34 +74,39 @@ public class ElectroBot extends TelegramLongPollingBot {
             // Log command event
             databaseService.logEvent(chatId, "command", messageText);
 
-            // Handle commands
-            switch (messageText) {
-                case "/start":
-                    sendWelcomeMessage(chatId, userName);
-                    break;
-                case "/help":
-                    sendHelpMessage(chatId);
-                    break;
-                case "/today":
-                    sendTodaySchedule(chatId);
-                    break;
-                case "/tomorrow":
-                    sendTomorrowSchedule(chatId);
-                    break;
-                case "/all":
-                    sendAllSchedules(chatId);
-                    break;
-                case "/menu":
-                    sendMainMenu(chatId);
-                    break;
-                case "/stats":
-                    sendStats(chatId);
-                    break;
-                case "/debug":
-                    sendDebugInfo(chatId);
-                    break;
-                default:
-                    sendMessage(chatId, "🤔 Невідома команда. Напишіть /help для списку команд.");
+            // Handle slash commands
+            if (messageText.startsWith("/")) {
+                switch (messageText) {
+                    case "/start":
+                        sendWelcomeMessage(chatId, userName);
+                        break;
+                    case "/help":
+                        sendHelpMessage(chatId);
+                        break;
+                    case "/today":
+                        sendTodaySchedule(chatId);
+                        break;
+                    case "/tomorrow":
+                        sendTomorrowSchedule(chatId);
+                        break;
+                    case "/all":
+                        sendAllSchedules(chatId);
+                        break;
+                    case "/menu":
+                        sendPersistentMenu(chatId);
+                        break;
+                    case "/stats":
+                        sendStats(chatId);
+                        break;
+                    case "/debug":
+                        sendDebugInfo(chatId);
+                        break;
+                    default:
+                        sendMessage(chatId, "🤔 Невідома команда. Напишіть /help для списку команд.");
+                }
+            } else {
+                // Handle menu button text commands
+                handleMenuButtonCommand(chatId, messageText);
             }
         }
     }
@@ -165,7 +171,39 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     /**
-     * Sends welcome message with main menu.
+     * Handles text commands from persistent menu buttons.
+     */
+    private void handleMenuButtonCommand(long chatId, String text) {
+        // Clear notifications on any menu action
+        clearNotifications(chatId);
+
+        switch (text) {
+            case KeyboardFactory.BTN_TODAY:
+                sendTodaySchedule(chatId);
+                break;
+            case KeyboardFactory.BTN_TOMORROW:
+                sendTomorrowSchedule(chatId);
+                break;
+            case KeyboardFactory.BTN_ALL:
+                sendAllSchedules(chatId);
+                break;
+            case KeyboardFactory.BTN_MY_QUEUE:
+                sendMyQueueInfo(chatId);
+                break;
+            case KeyboardFactory.BTN_NOTIFICATIONS:
+                sendNotificationsInfo(chatId);
+                break;
+            case KeyboardFactory.BTN_ABOUT:
+                sendAboutInfo(chatId);
+                break;
+            default:
+                // Unknown text - ignore or show hint
+                break;
+        }
+    }
+
+    /**
+     * Sends welcome message with persistent menu.
      */
     private void sendWelcomeMessage(long chatId, String userName) {
         int likesCount = userSettings.getLikesCount();
@@ -179,12 +217,17 @@ public class ElectroBot extends TelegramLongPollingBot {
             "• Зберігати вашу чергу для швидкого доступу\n\n" +
             "👍 Цей бот корисний *%d* %s\n\n" +
             "📧 Адміністратор: email@example.com\n\n" +
-            "Оберіть дію з меню нижче 👇",
+            "Використовуйте меню нижче 👇",
             userName, likesCount, getUserDeclension(likesCount)
         );
-        boolean showFeedback = !userSettings.hasLiked(chatId);
-        boolean showClearNotifications = userSettings.hasNotifications(chatId);
-        sendMessageWithKeyboard(chatId, text, KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
+        sendMessageWithPersistentMenu(chatId, text);
+    }
+
+    /**
+     * Sends persistent menu to user.
+     */
+    private void sendPersistentMenu(long chatId) {
+        sendMessageWithPersistentMenu(chatId, "📋 *Головне меню*\n\nВикористовуйте кнопки нижче:");
     }
 
     /**
@@ -198,14 +241,86 @@ public class ElectroBot extends TelegramLongPollingBot {
             "/today - Графік на сьогодні\n" +
             "/tomorrow - Графік на завтра\n" +
             "/all - Показати всі графіки\n" +
-            "/help - Показати цю довідку";
+            "/help - Показати цю довідку\n\n" +
+            "_Або використовуйте кнопки меню нижче_";
         sendMarkdownMessage(chatId, text);
     }
 
-    private void sendMainMenu(long chatId) {
-        boolean showFeedback = !userSettings.hasLiked(chatId);
-        boolean showClearNotifications = userSettings.hasNotifications(chatId);
-        sendMessageWithKeyboard(chatId, "📋 *Головне меню*\n\nОберіть дію:", KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
+    /**
+     * Sends my queue info with inline keyboard for queue selection.
+     */
+    private void sendMyQueueInfo(long chatId) {
+        String queue = userSettings.getUserQueue(chatId);
+        String text;
+        if (queue != null) {
+            text = String.format("🔌 *Ваша черга:* %s\n\nОберіть нову чергу:", queue);
+            // Show schedule for selected queue
+            if (parser.hasCachedData()) {
+                DailySchedule today = parser.getTodaySchedule();
+                List<String> hours = today.getHoursForQueue(queue);
+
+                if (hours == null || hours.isEmpty()) {
+                    text += String.format("\n\n📅 *Сьогодні (%s):*\n⏳ Очікується", today.getDate());
+                } else {
+                    text += String.format("\n\n📅 *Сьогодні (%s):*\n⏰ %s", today.getDate(), String.join(", ", hours));
+                }
+            }
+        } else {
+            text = "🔌 *Оберіть вашу чергу:*\n\nЦе дозволить бачити графік тільки для вашої черги та отримувати сповіщення.";
+        }
+        sendMessageWithInlineKeyboard(chatId, text, KeyboardFactory.queueSelectionMenu());
+    }
+
+    /**
+     * Sends notifications info with inline keyboard for toggling.
+     */
+    private void sendNotificationsInfo(long chatId) {
+        boolean enabled = userSettings.isNotificationsEnabled(chatId);
+        String queue = userSettings.getUserQueue(chatId);
+
+        String text;
+        if (queue == null) {
+            text = "⚠️ *Спочатку оберіть чергу!*\n\nДля отримання сповіщень потрібно обрати вашу чергу.\n\nНатисніть 🔌 Моя черга";
+            sendMarkdownMessage(chatId, text);
+            return;
+        }
+
+        String status = enabled ? "🔔 Увімкнено" : "🔕 Вимкнено";
+        text = String.format(
+            "🔔 *Сповіщення*\n\n" +
+            "Статус: %s\n" +
+            "Черга: *%s*\n\n" +
+            "Бот надішле повідомлення за 30 хвилин та 5 хвилин до можливого відключення.",
+            status, queue
+        );
+        sendMessageWithInlineKeyboard(chatId, text, KeyboardFactory.notificationsMenu(enabled));
+    }
+
+    /**
+     * Sends about info.
+     */
+    private void sendAboutInfo(long chatId) {
+        int likesCount = userSettings.getLikesCount();
+        boolean hasLiked = userSettings.hasLiked(chatId);
+
+        String text = String.format(
+            "ℹ️ *Про бота*\n\n" +
+            "Я бот для відстеження графіків відключень електроенергії " +
+            "у м. Рівне та Рівненській області.\n\n" +
+            "🔌 *Що я вмію:*\n" +
+            "• Показувати актуальний графік відключень\n" +
+            "• Надсилати сповіщення за 30 хв та 5 хв до відключення\n" +
+            "• Зберігати вашу чергу для швидкого доступу\n\n" +
+            "👍 Цей бот корисний *%d* %s\n\n" +
+            "📧 Адміністратор: email@example.com",
+            likesCount, getUserDeclension(likesCount)
+        );
+
+        if (!hasLiked) {
+            sendMessageWithInlineKeyboard(chatId, text, KeyboardFactory.feedbackMenu());
+        } else {
+            sendMarkdownMessage(chatId, text);
+        }
     }
 
     /**
@@ -451,13 +566,12 @@ public class ElectroBot extends TelegramLongPollingBot {
     // === Methods for working with buttons ===
 
     private void editMessageWithSchedule(long chatId, int messageId, String text) {
-        editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+        editMessage(chatId, messageId, text, null);
     }
 
     private void showMainMenu(long chatId, int messageId) {
-        boolean showFeedback = !userSettings.hasLiked(chatId);
-        boolean showClearNotifications = userSettings.hasNotifications(chatId);
-        editMessage(chatId, messageId, "📋 *Головне меню*\n\nОберіть дію:", KeyboardFactory.mainMenu(showFeedback, showClearNotifications));
+        // Just show a simple message - persistent menu is always visible
+        editMessage(chatId, messageId, "📋 *Головне меню*\n\nВикористовуйте кнопки нижче:", null);
     }
 
     private void showMyQueue(long chatId, int messageId) {
@@ -485,8 +599,8 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     private void setUserQueue(long chatId, int messageId, String queue) {
         userSettings.setUserQueue(chatId, queue);
-        String text = String.format("✅ Чергу *%s* збережено!\n\nТепер ви можете увімкнути сповіщення.", queue);
-        editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+        String text = String.format("✅ Чергу *%s* збережено!\n\nТепер ви можете увімкнути сповіщення (🔔 Сповіщення).", queue);
+        editMessage(chatId, messageId, text, null);
     }
 
     private void showNotificationsMenu(long chatId, int messageId) {
@@ -495,8 +609,8 @@ public class ElectroBot extends TelegramLongPollingBot {
 
         String text;
         if (queue == null) {
-            text = "⚠️ *Спочатку оберіть чергу!*\n\nДля отримання сповіщень потрібно обрати вашу чергу.";
-            editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+            text = "⚠️ *Спочатку оберіть чергу!*\n\nДля отримання сповіщень потрібно обрати вашу чергу (🔌 Моя черга).";
+            editMessage(chatId, messageId, text, null);
             return;
         }
 
@@ -516,11 +630,12 @@ public class ElectroBot extends TelegramLongPollingBot {
         String text = enable
             ? "✅ *Сповіщення увімкнено!*\n\nВи отримаєте повідомлення за 30 хв та 5 хв до відключення."
             : "🔕 *Сповіщення вимкнено.*";
-        editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+        editMessage(chatId, messageId, text, null);
     }
 
     private void showAbout(long chatId, int messageId) {
         int likesCount = userSettings.getLikesCount();
+        boolean hasLiked = userSettings.hasLiked(chatId);
         String text = String.format(
             "ℹ️ *Про бота*\n\n" +
             "Я бот для відстеження графіків відключень електроенергії " +
@@ -533,7 +648,12 @@ public class ElectroBot extends TelegramLongPollingBot {
             "📧 Адміністратор: email@example.com",
             likesCount, getUserDeclension(likesCount)
         );
-        editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+        // Show feedback button if user hasn't liked yet
+        if (!hasLiked) {
+            editMessage(chatId, messageId, text, KeyboardFactory.feedbackMenu());
+        } else {
+            editMessage(chatId, messageId, text, null);
+        }
     }
 
     private void showFeedback(long chatId, int messageId) {
@@ -555,7 +675,7 @@ public class ElectroBot extends TelegramLongPollingBot {
             "👍 Цей бот сподобався *%d* %s.",
             likesCount, getUserDeclension(likesCount)
         );
-        editMessage(chatId, messageId, text, KeyboardFactory.backToMenuButton());
+        editMessage(chatId, messageId, text, null);
     }
 
     private void handleClearNotifications(long chatId, int messageId) {
@@ -635,6 +755,38 @@ public class ElectroBot extends TelegramLongPollingBot {
         }
     }
 
+    /**
+     * Sends message with persistent reply keyboard (bottom menu).
+     */
+    private void sendMessageWithPersistentMenu(long chatId, String text) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(text);
+        message.setParseMode("Markdown");
+        message.setReplyMarkup(KeyboardFactory.persistentMenu());
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Sends message with inline keyboard (for sub-menus like queue selection).
+     */
+    private void sendMessageWithInlineKeyboard(long chatId, String text, InlineKeyboardMarkup keyboard) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(text);
+        message.setParseMode("Markdown");
+        message.setReplyMarkup(keyboard);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void editMessage(long chatId, int messageId, String text, InlineKeyboardMarkup keyboard) {
         EditMessageText edit = new EditMessageText();
         edit.setChatId(chatId);
@@ -673,3 +825,4 @@ public class ElectroBot extends TelegramLongPollingBot {
         return "користувачам";
     }
 }
+
