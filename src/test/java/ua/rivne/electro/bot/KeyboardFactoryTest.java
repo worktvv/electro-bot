@@ -27,8 +27,8 @@ class KeyboardFactoryTest {
             assertNotNull(keyboard);
             List<KeyboardRow> rows = keyboard.getKeyboard();
 
-            // Should have 4 rows
-            assertEquals(4, rows.size());
+            // Should have 3 rows
+            assertEquals(3, rows.size());
 
             // First row: Today and Tomorrow
             assertEquals(2, rows.get(0).size());
@@ -39,14 +39,11 @@ class KeyboardFactoryTest {
             assertEquals(1, rows.get(1).size());
             assertEquals(KeyboardFactory.BTN_ALL, rows.get(1).get(0).getText());
 
-            // Third row: My queue and Notifications
-            assertEquals(2, rows.get(2).size());
-            assertEquals(KeyboardFactory.BTN_MY_QUEUE, rows.get(2).get(0).getText());
-            assertEquals(KeyboardFactory.BTN_NOTIFICATIONS, rows.get(2).get(1).getText());
-
-            // Fourth row: About
-            assertEquals(1, rows.get(3).size());
-            assertEquals(KeyboardFactory.BTN_ABOUT, rows.get(3).get(0).getText());
+            // Third row: Notifications, My queue (center), About
+            assertEquals(3, rows.get(2).size());
+            assertEquals(KeyboardFactory.BTN_NOTIFICATIONS, rows.get(2).get(0).getText());
+            assertEquals(KeyboardFactory.BTN_MY_QUEUE, rows.get(2).get(1).getText());
+            assertEquals(KeyboardFactory.BTN_ABOUT, rows.get(2).get(2).getText());
         }
 
         @Test
@@ -88,7 +85,7 @@ class KeyboardFactoryTest {
         @Test
         @DisplayName("Should include feedback button when showFeedback is true")
         void shouldIncludeFeedbackButton() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu(true, false);
+            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu(true);
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
@@ -100,22 +97,8 @@ class KeyboardFactoryTest {
         }
 
         @Test
-        @DisplayName("Should include clear notifications button when showClearNotifications is true")
-        void shouldIncludeClearNotificationsButton() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu(false, true);
-
-            List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
-
-            boolean hasClearNotifications = rows.stream()
-                .flatMap(List::stream)
-                .anyMatch(btn -> KeyboardFactory.CB_CLEAR_NOTIFICATIONS.equals(btn.getCallbackData()));
-
-            assertTrue(hasClearNotifications);
-        }
-
-        @Test
-        @DisplayName("Should not include optional buttons by default")
-        void shouldNotIncludeOptionalButtonsByDefault() {
+        @DisplayName("Should not include feedback button by default")
+        void shouldNotIncludeFeedbackButtonByDefault() {
             InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu();
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
@@ -124,12 +107,7 @@ class KeyboardFactoryTest {
                 .flatMap(List::stream)
                 .anyMatch(btn -> KeyboardFactory.CB_FEEDBACK.equals(btn.getCallbackData()));
 
-            boolean hasClearNotifications = rows.stream()
-                .flatMap(List::stream)
-                .anyMatch(btn -> KeyboardFactory.CB_CLEAR_NOTIFICATIONS.equals(btn.getCallbackData()));
-
             assertFalse(hasFeedback);
-            assertFalse(hasClearNotifications);
         }
     }
 
