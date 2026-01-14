@@ -125,10 +125,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         // Log button event
         databaseService.logEvent(chatId, "button", data);
 
-        // Clear notifications and stats on any button press (except clear/close buttons)
-        if (!data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS) && !data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
-            clearNotifications(chatId);
-        }
+        // Notifications are kept in chat history
 
         if (data.equals(KeyboardFactory.CB_CLOSE_STATS)) {
             handleCloseStats(chatId, messageId);
@@ -155,8 +152,6 @@ public class ElectroBot extends TelegramLongPollingBot {
             showFeedback(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_LIKE)) {
             handleLike(chatId, messageId);
-        } else if (data.equals(KeyboardFactory.CB_CLEAR_NOTIFICATIONS)) {
-            handleClearNotifications(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_BACK)) {
             showMainMenu(chatId, messageId);
         }
@@ -174,8 +169,7 @@ public class ElectroBot extends TelegramLongPollingBot {
      * Handles text commands from persistent menu buttons.
      */
     private void handleMenuButtonCommand(long chatId, String text) {
-        // Clear notifications on any menu action
-        clearNotifications(chatId);
+        // Note: notifications are no longer auto-cleared on menu action
 
         switch (text) {
             case KeyboardFactory.BTN_TODAY:
@@ -404,9 +398,7 @@ public class ElectroBot extends TelegramLongPollingBot {
                 .parseMode("Markdown")
                 .replyMarkup(KeyboardFactory.statsKeyboard())
                 .build();
-            Message sent = execute(message);
-            // Save message_id so it gets deleted with notifications
-            userSettings.addNotificationMessageId(chatId, sent.getMessageId());
+            execute(message);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
@@ -678,42 +670,18 @@ public class ElectroBot extends TelegramLongPollingBot {
         editMessage(chatId, messageId, text, null);
     }
 
-    private void handleClearNotifications(long chatId, int messageId) {
-        clearNotifications(chatId);
-        showMainMenu(chatId, messageId);
-    }
-
     /**
-     * Clears all notification messages for user.
+     * Sends notification message.
      */
-    private void clearNotifications(long chatId) {
-        java.util.Set<Integer> messageIds = userSettings.getAndClearNotificationMessageIds(chatId);
-        for (Integer msgId : messageIds) {
-            try {
-                execute(DeleteMessage.builder()
-                    .chatId(chatId)
-                    .messageId(msgId)
-                    .build());
-            } catch (TelegramApiException e) {
-                // Message may already be deleted, ignore
-            }
-        }
-    }
-
-    /**
-     * Sends notification message and returns its ID.
-     */
-    private Integer sendNotificationMessage(long chatId, String text) {
+    private void sendNotificationMessage(long chatId, String text) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(text);
         message.setParseMode("Markdown");
         try {
-            Message sent = execute(message);
-            return sent.getMessageId();
+            execute(message);
         } catch (TelegramApiException e) {
             e.printStackTrace();
-            return null;
         }
     }
 
