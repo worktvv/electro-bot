@@ -24,9 +24,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Main Telegram bot class.
+ * Main Telegram bot class for the Electro Bot.
  *
- * Handles incoming messages and commands from users.
+ * <p>This bot provides power outage schedule information for Rivne city
+ * and Rivne region. It handles:
+ * <ul>
+ *   <li>Slash commands (/start, /help, /today, /tomorrow, /all, /menu, /stats)</li>
+ *   <li>Persistent keyboard button presses</li>
+ *   <li>Inline keyboard callbacks</li>
+ *   <li>Automated outage notifications</li>
+ * </ul>
+ *
+ * <p>The bot uses long polling to receive updates from Telegram.
+ *
+ * @author Electro Bot Team
+ * @version 1.0
+ * @see ScheduleParser
+ * @see NotificationService
+ * @see KeyboardFactory
  */
 public class ElectroBot extends TelegramLongPollingBot {
 
@@ -36,6 +51,18 @@ public class ElectroBot extends TelegramLongPollingBot {
     private final UserSettingsService userSettings;
     private final NotificationService notificationService;
 
+    /**
+     * Creates and initializes the Electro Bot.
+     *
+     * <p>Initialization includes:
+     * <ul>
+     *   <li>Setting up database connection</li>
+     *   <li>Starting schedule cache updater (30-minute interval)</li>
+     *   <li>Starting notification service (1-minute check interval)</li>
+     * </ul>
+     *
+     * @param config the bot configuration containing token, username, and database URL
+     */
     public ElectroBot(Config config) {
         super(config.getBotToken());
         this.config = config;
