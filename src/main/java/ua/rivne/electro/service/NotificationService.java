@@ -25,7 +25,7 @@ public class NotificationService {
     private static final int CHECK_INTERVAL_MINUTES = 1; // Check every minute for accuracy
 
     // Notification intervals (minutes before outage)
-    private static final int[] NOTIFY_BEFORE_MINUTES = {25, 5};
+    private static final int[] NOTIFY_BEFORE_MINUTES = {30, 5};
 
     private final ScheduleParser parser;
     private final UserSettingsService userSettings;
@@ -34,8 +34,8 @@ public class NotificationService {
     // Track sent notifications: "chatId:hourRange:minutesBefore:date"
     private final Set<String> sentNotifications = ConcurrentHashMap.newKeySet();
 
-    // Callback for sending messages (chatId, message) -> returns messageId
-    private java.util.function.BiFunction<Long, String, Integer> messageSender;
+    // Callback for sending messages (chatId, message)
+    private java.util.function.BiConsumer<Long, String> messageSender;
 
     public NotificationService(ScheduleParser parser, UserSettingsService userSettings) {
         this.parser = parser;
@@ -45,9 +45,8 @@ public class NotificationService {
 
     /**
      * Sets callback for sending messages.
-     * The function should return the message ID of the sent message.
      */
-    public void setMessageSender(java.util.function.BiFunction<Long, String, Integer> sender) {
+    public void setMessageSender(java.util.function.BiConsumer<Long, String> sender) {
         this.messageSender = sender;
     }
 
@@ -169,10 +168,7 @@ public class NotificationService {
                         "Підготуйтесь заздалегідь!",
                         emoji, urgency, notifyMinutes, queue, hourRange
                     );
-                    Integer messageId = messageSender.apply(chatId, message);
-                    if (messageId != null) {
-                        userSettings.addNotificationMessageId(chatId, messageId);
-                    }
+                    messageSender.accept(chatId, message);
                 }
             }
         }
