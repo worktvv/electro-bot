@@ -274,55 +274,6 @@ public class DatabaseService {
         return 0;
     }
 
-    public void addNotificationMessageId(long chatId, int messageId) {
-        String sql = "INSERT INTO notification_messages (chat_id, message_id) VALUES (?, ?)";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, chatId);
-            stmt.setInt(2, messageId);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public Set<Integer> getAndClearNotificationMessageIds(long chatId) {
-        Set<Integer> ids = new HashSet<>();
-        String selectSql = "SELECT message_id FROM notification_messages WHERE chat_id = ?";
-        String deleteSql = "DELETE FROM notification_messages WHERE chat_id = ?";
-        try (Connection conn = dataSource.getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement(selectSql)) {
-                stmt.setLong(1, chatId);
-                ResultSet rs = stmt.executeQuery();
-                while (rs.next()) {
-                    ids.add(rs.getInt("message_id"));
-                }
-            }
-            try (PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
-                stmt.setLong(1, chatId);
-                stmt.executeUpdate();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return ids;
-    }
-
-    public boolean hasNotifications(long chatId) {
-        String sql = "SELECT COUNT(*) FROM notification_messages WHERE chat_id = ?";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, chatId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1) > 0;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
