@@ -17,26 +17,56 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Service for sending power outage notifications.
+ * Service for sending power outage notifications to users.
+ *
+ * <p>This service monitors scheduled outages and sends timely notifications
+ * to users who have enabled notifications and selected their power queue.
+ *
+ * <p>Notification timing:
+ * <ul>
+ *   <li>⚠️ 30 minutes before scheduled outage - warning notification</li>
+ *   <li>🚨 5 minutes before scheduled outage - urgent notification</li>
+ * </ul>
+ *
+ * <p>The service runs a background scheduler that checks every minute
+ * for upcoming outages and sends notifications as needed.
+ *
+ * <p>Usage:
+ * <pre>{@code
+ * NotificationService service = new NotificationService(parser, userSettings);
+ * service.setMessageSender((chatId, message) -> bot.sendMessage(chatId, message));
+ * service.start();
+ * }</pre>
+ *
+ * @author Electro Bot Team
+ * @version 1.0
  */
 public class NotificationService {
 
+    /** Timezone for all time calculations */
     private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
-    private static final int CHECK_INTERVAL_MINUTES = 1; // Check every minute for accuracy
 
-    // Notification intervals (minutes before outage)
-    private static final int[] NOTIFY_BEFORE_MINUTES = {58, 5};
+    /** How often to check for upcoming outages (in minutes) */
+    private static final int CHECK_INTERVAL_MINUTES = 1;
+
+    /** Minutes before outage to send notifications */
+    private static final int[] NOTIFY_BEFORE_MINUTES = {30, 5};
 
     private final ScheduleParser parser;
     private final UserSettingsService userSettings;
     private final ScheduledExecutorService scheduler;
 
-    // Track sent notifications: "chatId:hourRange:minutesBefore:date"
+    /** Tracks sent notifications to prevent duplicates. Key format: "chatId:hourRange:minutesBefore:date" */
     private final Set<String> sentNotifications = ConcurrentHashMap.newKeySet();
 
-    // Callback for sending messages (chatId, message)
     private java.util.function.BiConsumer<Long, String> messageSender;
 
+    /**
+     * Creates a new NotificationService.
+     *
+     * @param parser the schedule parser for fetching outage data
+     * @param userSettings the user settings service for user preferences
+     */
     public NotificationService(ScheduleParser parser, UserSettingsService userSettings) {
         this.parser = parser;
         this.userSettings = userSettings;
@@ -44,7 +74,9 @@ public class NotificationService {
     }
 
     /**
-     * Sets callback for sending messages.
+     * Sets the callback function for sending messages to users.
+     *
+     * @param sender a BiConsumer that accepts (chatId, message) and sends the message
      */
     public void setMessageSender(java.util.function.BiConsumer<Long, String> sender) {
         this.messageSender = sender;
@@ -52,6 +84,9 @@ public class NotificationService {
 
     /**
      * Starts the notification service.
+     *
+     * <p>Begins checking for upcoming outages every minute and
+     * sending notifications to eligible users.
      */
     public void start() {
         scheduler.scheduleAtFixedRate(
