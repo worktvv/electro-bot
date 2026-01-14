@@ -49,17 +49,5 @@ public class UserSettingsService {
     public int getLikesCount() {
         return db.getLikesCount();
     }
-
-    public void addNotificationMessageId(long chatId, int messageId) {
-        db.addNotificationMessageId(chatId, messageId);
-    }
-
-    public Set<Integer> getAndClearNotificationMessageIds(long chatId) {
-        return db.getAndClearNotificationMessageIds(chatId);
-    }
-
-    public boolean hasNotifications(long chatId) {
-        return db.hasNotifications(chatId);
-    }
 }
 
