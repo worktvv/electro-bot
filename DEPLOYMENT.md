@@ -54,7 +54,6 @@ This guide covers deploying Electro Bot to Railway.
 | `BOT_TOKEN` | Your Telegram bot token |
 | `BOT_USERNAME` | Your bot username (without @) |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (Railway reference) |
-| `ADMIN_CHAT_ID` | Your Telegram chat ID (optional) |
 
 > **Note**: For `DATABASE_URL`, you can use Railway's variable reference syntax to automatically link to your PostgreSQL instance.
 
