@@ -5,35 +5,66 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Model for storing power outage schedule for one day for all queues.
+ * Model representing a power outage schedule for a single day.
+ *
+ * <p>Stores outage time ranges for all power queues (1.1 through 6.2).
+ * Each queue can have multiple outage periods during the day.
+ *
+ * <p>Example usage:
+ * <pre>{@code
+ * DailySchedule schedule = new DailySchedule("14.01.2026");
+ * schedule.addQueueHours("1.1", List.of("08:00 - 12:00", "16:00 - 20:00"));
+ * List<String> hours = schedule.getHoursForQueue("1.1");
+ * }</pre>
+ *
+ * @author Electro Bot Team
+ * @version 1.0
  */
 public class DailySchedule {
 
-    // All possible queues
+    /** All possible power queue identifiers */
     private static final String[] ALL_QUEUES = {
         "1.1", "1.2", "2.1", "2.2", "3.1", "3.2",
         "4.1", "4.2", "5.1", "5.2", "6.1", "6.2"
     };
 
     private final String date;
-    // Key - queue number (e.g., "1.1"), value - outage hours (null = pending)
     private final Map<String, List<String>> queueHours;
 
+    /**
+     * Creates a new daily schedule for the specified date.
+     *
+     * @param date the date in format "dd.MM.yyyy"
+     */
     public DailySchedule(String date) {
         this.date = date;
         this.queueHours = new HashMap<>();
     }
 
+    /**
+     * Adds outage hours for a specific queue.
+     *
+     * @param queueNumber the queue identifier (e.g., "1.1", "2.2")
+     * @param hours list of time ranges (e.g., ["08:00 - 12:00", "16:00 - 20:00"])
+     */
     public void addQueueHours(String queueNumber, List<String> hours) {
         queueHours.put(queueNumber, hours);
     }
 
+    /**
+     * Returns the date of this schedule.
+     *
+     * @return date string in format "dd.MM.yyyy"
+     */
     public String getDate() {
         return date;
     }
 
     /**
-     * Returns hours for a queue. null means "pending".
+     * Returns outage hours for a specific queue.
+     *
+     * @param queueNumber the queue identifier (e.g., "1.1")
+     * @return list of time ranges, empty list if no outages, or null if data is pending
      */
     public List<String> getHoursForQueue(String queueNumber) {
         if (!queueHours.containsKey(queueNumber)) {
