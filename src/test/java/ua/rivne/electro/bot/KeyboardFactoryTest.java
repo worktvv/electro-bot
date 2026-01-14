@@ -4,7 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 
 import java.util.List;
 
@@ -14,11 +16,60 @@ import static org.junit.jupiter.api.Assertions.*;
 class KeyboardFactoryTest {
 
     @Nested
-    @DisplayName("Main menu tests")
+    @DisplayName("Persistent menu tests")
+    class PersistentMenuTests {
+
+        @Test
+        @DisplayName("Should create persistent menu with all buttons")
+        void shouldCreatePersistentMenuWithAllButtons() {
+            ReplyKeyboardMarkup keyboard = KeyboardFactory.persistentMenu();
+
+            assertNotNull(keyboard);
+            List<KeyboardRow> rows = keyboard.getKeyboard();
+
+            // Should have 4 rows
+            assertEquals(4, rows.size());
+
+            // First row: Today and Tomorrow
+            assertEquals(2, rows.get(0).size());
+            assertEquals(KeyboardFactory.BTN_TODAY, rows.get(0).get(0).getText());
+            assertEquals(KeyboardFactory.BTN_TOMORROW, rows.get(0).get(1).getText());
+
+            // Second row: All schedules
+            assertEquals(1, rows.get(1).size());
+            assertEquals(KeyboardFactory.BTN_ALL, rows.get(1).get(0).getText());
+
+            // Third row: My queue and Notifications
+            assertEquals(2, rows.get(2).size());
+            assertEquals(KeyboardFactory.BTN_MY_QUEUE, rows.get(2).get(0).getText());
+            assertEquals(KeyboardFactory.BTN_NOTIFICATIONS, rows.get(2).get(1).getText());
+
+            // Fourth row: About
+            assertEquals(1, rows.get(3).size());
+            assertEquals(KeyboardFactory.BTN_ABOUT, rows.get(3).get(0).getText());
+        }
+
+        @Test
+        @DisplayName("Should have resize keyboard enabled")
+        void shouldHaveResizeKeyboardEnabled() {
+            ReplyKeyboardMarkup keyboard = KeyboardFactory.persistentMenu();
+            assertTrue(keyboard.getResizeKeyboard());
+        }
+
+        @Test
+        @DisplayName("Should be persistent")
+        void shouldBePersistent() {
+            ReplyKeyboardMarkup keyboard = KeyboardFactory.persistentMenu();
+            assertTrue(keyboard.getIsPersistent());
+        }
+    }
+
+    @Nested
+    @DisplayName("Inline main menu tests (legacy)")
     class MainMenuTests {
 
         @Test
-        @DisplayName("Should create main menu with basic buttons")
+        @DisplayName("Should create inline main menu with basic buttons")
         void shouldCreateMainMenuWithBasicButtons() {
             InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu();
 
@@ -93,8 +144,8 @@ class KeyboardFactoryTest {
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
-            // 6 rows for queues (1.x, 2.x, 3.x, 4.x, 5.x, 6.x) + 1 back button
-            assertEquals(7, rows.size());
+            // 6 rows for queues (1.x, 2.x, 3.x, 4.x, 5.x, 6.x) - no back button (use persistent menu)
+            assertEquals(6, rows.size());
 
             // Check first queue row
             assertEquals(2, rows.get(0).size());
@@ -103,15 +154,16 @@ class KeyboardFactoryTest {
         }
 
         @Test
-        @DisplayName("Should have back button")
-        void shouldHaveBackButton() {
+        @DisplayName("Should have all queue buttons")
+        void shouldHaveAllQueueButtons() {
             InlineKeyboardMarkup keyboard = KeyboardFactory.queueSelectionMenu();
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
-            List<InlineKeyboardButton> lastRow = rows.get(rows.size() - 1);
 
-            assertEquals(1, lastRow.size());
-            assertEquals(KeyboardFactory.CB_BACK, lastRow.get(0).getCallbackData());
+            // Check last queue row (6.x)
+            assertEquals(2, rows.get(5).size());
+            assertEquals(KeyboardFactory.CB_SET_QUEUE + "6.1", rows.get(5).get(0).getCallbackData());
+            assertEquals(KeyboardFactory.CB_SET_QUEUE + "6.2", rows.get(5).get(1).getCallbackData());
         }
     }
 
@@ -126,6 +178,8 @@ class KeyboardFactoryTest {
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
+            // Only 1 row - no back button (use persistent menu)
+            assertEquals(1, rows.size());
             assertEquals(KeyboardFactory.CB_NOTIFY_OFF, rows.get(0).get(0).getCallbackData());
         }
 
@@ -136,6 +190,8 @@ class KeyboardFactoryTest {
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
+            // Only 1 row - no back button (use persistent menu)
+            assertEquals(1, rows.size());
             assertEquals(KeyboardFactory.CB_NOTIFY_ON, rows.get(0).get(0).getCallbackData());
         }
     }
@@ -143,15 +199,6 @@ class KeyboardFactoryTest {
     @Nested
     @DisplayName("Other keyboards tests")
     class OtherKeyboardsTests {
-
-        @Test
-        @DisplayName("Should create back to menu button")
-        void shouldCreateBackToMenuButton() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.backToMenuButton();
-
-            assertEquals(1, keyboard.getKeyboard().size());
-            assertEquals(KeyboardFactory.CB_BACK, keyboard.getKeyboard().get(0).get(0).getCallbackData());
-        }
 
         @Test
         @DisplayName("Should create stats keyboard with close button")
@@ -163,15 +210,15 @@ class KeyboardFactoryTest {
         }
 
         @Test
-        @DisplayName("Should create feedback menu")
+        @DisplayName("Should create feedback menu with like button only")
         void shouldCreateFeedbackMenu() {
             InlineKeyboardMarkup keyboard = KeyboardFactory.feedbackMenu();
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
-            assertEquals(2, rows.size());
+            // Only 1 row with like button - no back button (use persistent menu)
+            assertEquals(1, rows.size());
             assertEquals(KeyboardFactory.CB_LIKE, rows.get(0).get(0).getCallbackData());
-            assertEquals(KeyboardFactory.CB_BACK, rows.get(1).get(0).getCallbackData());
         }
     }
 }
