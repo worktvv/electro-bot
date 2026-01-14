@@ -9,7 +9,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Factory for creating keyboards.
+ * Factory for creating Telegram keyboards.
+ *
+ * <p>This class provides static methods to create various keyboard types:
+ * <ul>
+ *   <li>{@link #persistentMenu()} - Bottom reply keyboard always visible to users</li>
+ *   <li>{@link #mainMenu()} - Inline keyboard for main menu actions</li>
+ *   <li>{@link #queueSelectionMenu()} - Inline keyboard for queue selection</li>
+ *   <li>{@link #notificationsMenu(boolean)} - Inline keyboard for notification settings</li>
+ * </ul>
+ *
+ * <p>All button labels are in Ukrainian as per user interface requirements.
+ *
+ * @author Electro Bot Team
+ * @version 1.0
  */
 public class KeyboardFactory {
 
@@ -37,8 +50,17 @@ public class KeyboardFactory {
     public static final String BTN_ABOUT = "ℹ️";
 
     /**
-     * Creates persistent reply keyboard (bottom menu).
-     * This keyboard is always visible at the bottom of the screen.
+     * Creates a persistent reply keyboard (bottom menu).
+     *
+     * <p>This keyboard is always visible at the bottom of the chat screen
+     * and provides quick access to main bot functions:
+     * <ul>
+     *   <li>Row 1: "📅 Сьогодні" (Today), "📆 Завтра" (Tomorrow)</li>
+     *   <li>Row 2: "📊 Всі графіки" (All schedules)</li>
+     *   <li>Row 3: "🔔" (Notifications), "🔌 Моя черга" (My queue), "ℹ️" (About)</li>
+     * </ul>
+     *
+     * @return configured ReplyKeyboardMarkup with persistent visibility
      */
     public static ReplyKeyboardMarkup persistentMenu() {
         List<KeyboardRow> keyboard = new ArrayList<>();
@@ -69,15 +91,29 @@ public class KeyboardFactory {
     }
 
     /**
-     * Main menu keyboard (without optional buttons).
+     * Creates the main menu inline keyboard without optional buttons.
+     *
+     * @return inline keyboard with standard menu options
+     * @see #mainMenu(boolean)
      */
     public static InlineKeyboardMarkup mainMenu() {
         return mainMenu(false);
     }
 
     /**
-     * Main menu keyboard.
-     * @param showFeedback whether to show feedback button
+     * Creates the main menu inline keyboard.
+     *
+     * <p>The menu includes:
+     * <ul>
+     *   <li>"📅 Сьогодні" / "📆 Завтра" - View today's/tomorrow's schedule</li>
+     *   <li>"📊 Всі графіки" - View all available schedules</li>
+     *   <li>"🔌 Моя черга" / "🔔 Сповіщення" - Queue and notification settings</li>
+     *   <li>"ℹ️ Про бота" - About the bot</li>
+     *   <li>"💬 Цей бот корисний?" - Feedback (optional)</li>
+     * </ul>
+     *
+     * @param showFeedback if true, includes the feedback button for users who haven't liked yet
+     * @return configured InlineKeyboardMarkup
      */
     public static InlineKeyboardMarkup mainMenu(boolean showFeedback) {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
