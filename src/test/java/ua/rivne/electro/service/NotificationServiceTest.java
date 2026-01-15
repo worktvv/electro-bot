@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ua.rivne.electro.model.DailySchedule;
 import ua.rivne.electro.parser.ScheduleParser;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
@@ -128,6 +129,105 @@ class NotificationServiceTest {
             assertDoesNotThrow(() -> {
                 notificationService.setMessageSender(mockSender);
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("parseEndTime() tests")
+    class ParseEndTimeTests {
+
+        @Test
+        @DisplayName("Should parse end time from standard format")
+        void shouldParseEndTimeStandard() {
+            LocalTime result = notificationService.parseEndTime("13:00 - 17:00");
+            assertEquals(LocalTime.of(17, 0), result);
+        }
+
+        @Test
+        @DisplayName("Should parse midnight end time")
+        void shouldParseMidnightEndTime() {
+            LocalTime result = notificationService.parseEndTime("22:00 - 00:00");
+            assertEquals(LocalTime.MIDNIGHT, result);
+        }
+
+        @Test
+        @DisplayName("Should parse end time without spaces")
+        void shouldParseEndTimeNoSpaces() {
+            LocalTime result = notificationService.parseEndTime("08:00-12:00");
+            assertEquals(LocalTime.of(12, 0), result);
+        }
+
+        @Test
+        @DisplayName("Should return null for invalid format")
+        void shouldReturnNullForInvalidFormat() {
+            LocalTime result = notificationService.parseEndTime("invalid");
+            assertNull(result);
+        }
+    }
+
+    @Nested
+    @DisplayName("isContinuationOfPreviousOutage() tests")
+    class ContinuationTests {
+
+        @Test
+        @DisplayName("Should detect continuation when previous day ends at midnight")
+        void shouldDetectContinuation() {
+            LocalDate today = LocalDate.of(2026, 1, 16);
+            LocalDate yesterday = LocalDate.of(2026, 1, 15);
+
+            DailySchedule yesterdaySchedule = new DailySchedule("15.01.2026");
+            yesterdaySchedule.addQueueHours("6.1", List.of("22:00 - 00:00"));
+
+            when(parser.getScheduleForDate(yesterday)).thenReturn(yesterdaySchedule);
+
+            boolean result = notificationService.isContinuationOfPreviousOutage("6.1", today);
+
+            assertTrue(result);
+        }
+
+        @Test
+        @DisplayName("Should not detect continuation when previous day does not end at midnight")
+        void shouldNotDetectContinuationWhenNotMidnight() {
+            LocalDate today = LocalDate.of(2026, 1, 16);
+            LocalDate yesterday = LocalDate.of(2026, 1, 15);
+
+            DailySchedule yesterdaySchedule = new DailySchedule("15.01.2026");
+            yesterdaySchedule.addQueueHours("6.1", List.of("18:00 - 22:00"));
+
+            when(parser.getScheduleForDate(yesterday)).thenReturn(yesterdaySchedule);
+
+            boolean result = notificationService.isContinuationOfPreviousOutage("6.1", today);
+
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("Should not detect continuation when no previous schedule")
+        void shouldNotDetectContinuationWhenNoPreviousSchedule() {
+            LocalDate today = LocalDate.of(2026, 1, 16);
+            LocalDate yesterday = LocalDate.of(2026, 1, 15);
+
+            when(parser.getScheduleForDate(yesterday)).thenReturn(null);
+
+            boolean result = notificationService.isContinuationOfPreviousOutage("6.1", today);
+
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("Should not detect continuation for different queue")
+        void shouldNotDetectContinuationForDifferentQueue() {
+            LocalDate today = LocalDate.of(2026, 1, 16);
+            LocalDate yesterday = LocalDate.of(2026, 1, 15);
+
+            DailySchedule yesterdaySchedule = new DailySchedule("15.01.2026");
+            yesterdaySchedule.addQueueHours("1.1", List.of("22:00 - 00:00")); // Different queue
+
+            when(parser.getScheduleForDate(yesterday)).thenReturn(yesterdaySchedule);
+
+            boolean result = notificationService.isContinuationOfPreviousOutage("6.1", today);
+
+            assertFalse(result);
         }
     }
 }
