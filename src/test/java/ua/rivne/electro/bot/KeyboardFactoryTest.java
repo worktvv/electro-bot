@@ -73,13 +73,18 @@ class KeyboardFactoryTest {
             assertNotNull(keyboard);
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
-            // Should have at least 4 rows (Today/Tomorrow, All, MyQueue/Notifications, About)
+            // Should have at least 5 rows (Today/All/Tomorrow, Share, MyQueue/Notifications, About)
             assertTrue(rows.size() >= 4);
 
-            // First row: Today and Tomorrow
-            assertEquals(2, rows.get(0).size());
+            // First row: Today, All schedules, Tomorrow
+            assertEquals(3, rows.get(0).size());
             assertEquals(KeyboardFactory.CB_TODAY, rows.get(0).get(0).getCallbackData());
-            assertEquals(KeyboardFactory.CB_TOMORROW, rows.get(0).get(1).getCallbackData());
+            assertEquals(KeyboardFactory.CB_ALL, rows.get(0).get(1).getCallbackData());
+            assertEquals(KeyboardFactory.CB_TOMORROW, rows.get(0).get(2).getCallbackData());
+
+            // Second row: Share button (URL button, no callback data)
+            assertEquals(1, rows.get(1).size());
+            assertEquals(KeyboardFactory.SHARE_BOT_URL, rows.get(1).get(0).getUrl());
         }
 
         @Test
