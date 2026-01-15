@@ -515,15 +515,15 @@ public class ElectroBot extends TelegramLongPollingBot {
     }
 
     private void sendTodaySchedule(long chatId) {
-        sendMarkdownMessage(chatId, getTodayText(chatId));
+        sendMessageWithKeyboard(chatId, getTodayText(chatId), KeyboardFactory.shareKeyboard());
     }
 
     private void sendTomorrowSchedule(long chatId) {
-        sendMarkdownMessage(chatId, getTomorrowText(chatId));
+        sendMessageWithKeyboard(chatId, getTomorrowText(chatId), KeyboardFactory.shareKeyboard());
     }
 
     private void sendAllSchedules(long chatId) {
-        sendMarkdownMessage(chatId, getAllSchedulesText(chatId));
+        sendMessageWithKeyboard(chatId, getAllSchedulesText(chatId), KeyboardFactory.shareKeyboard());
     }
 
     // === Methods for getting text ===
@@ -585,7 +585,7 @@ public class ElectroBot extends TelegramLongPollingBot {
     // === Methods for working with buttons ===
 
     private void editMessageWithSchedule(long chatId, int messageId, String text) {
-        editMessage(chatId, messageId, text, null);
+        editMessage(chatId, messageId, text, KeyboardFactory.shareKeyboard());
     }
 
     private void showMainMenu(long chatId, int messageId) {
