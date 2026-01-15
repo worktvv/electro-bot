@@ -618,7 +618,7 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     private void setUserQueue(long chatId, int messageId, String queue) {
         userSettings.setUserQueue(chatId, queue);
-        String text = String.format("✅ Чергу *%s* збережено!\n\nТепер ви можете увімкнути сповіщення (🔔 Сповіщення).", queue);
+        String text = String.format("✅ Чергу *%s* збережено!\n\nТепер ви можете увімкнути сповіщення (🔔 Сповіщення) в боті, щоб знати, коли буде відключення електроенергії.", queue);
         editMessage(chatId, messageId, text, null);
     }
 
