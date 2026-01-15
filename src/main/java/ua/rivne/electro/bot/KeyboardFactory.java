@@ -41,6 +41,9 @@ public class KeyboardFactory {
     public static final String CB_LIKE = "like";
     public static final String CB_CLOSE_STATS = "close_stats";
 
+    // Share bot URL
+    public static final String SHARE_BOT_URL = "https://t.me/share/url?url=https://t.me/electrorivne_bot";
+
     // Button text constants for reply keyboard (used for matching incoming messages)
     public static final String BTN_TODAY = "📅 Сьогодні";
     public static final String BTN_TOMORROW = "📆 Завтра";
@@ -118,15 +121,16 @@ public class KeyboardFactory {
     public static InlineKeyboardMarkup mainMenu(boolean showFeedback) {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
-        // First row
+        // First row: Today, All schedules, Tomorrow
         keyboard.add(List.of(
             button("📅 Сьогодні", CB_TODAY),
+            button("📊 Всі графіки", CB_ALL),
             button("📆 Завтра", CB_TOMORROW)
         ));
 
-        // Second row
+        // Second row: Share bot
         keyboard.add(List.of(
-            button("📊 Всі графіки", CB_ALL)
+            urlButton("📤 Поділитися ботом", SHARE_BOT_URL)
         ));
 
         // Third row
@@ -237,12 +241,22 @@ public class KeyboardFactory {
     }
 
     /**
-     * Creates a button.
+     * Creates a callback button.
      */
     private static InlineKeyboardButton button(String text, String callbackData) {
         return InlineKeyboardButton.builder()
             .text(text)
             .callbackData(callbackData)
+            .build();
+    }
+
+    /**
+     * Creates a URL button that opens a link when clicked.
+     */
+    private static InlineKeyboardButton urlButton(String text, String url) {
+        return InlineKeyboardButton.builder()
+            .text(text)
+            .url(url)
             .build();
     }
 }
