@@ -174,6 +174,11 @@ public class NotificationService {
             return; // Parsing error
         }
 
+        // Skip midnight outages that are continuations of previous day's outage
+        if (startTime.equals(LocalTime.MIDNIGHT) && isContinuationOfPreviousOutage(queue, outageDate)) {
+            return; // This is a continuation, not a new outage
+        }
+
         // Create full datetime for the outage
         LocalDateTime outageDateTime = LocalDateTime.of(outageDate, startTime);
 
@@ -230,6 +235,65 @@ public class NotificationService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Parses end time from time range.
+     * Handles formats: "13:00 - 17:00", "13:00-17:00", "22:00 - 00:00"
+     * Package-private for testing.
+     */
+    LocalTime parseEndTime(String hourRange) {
+        try {
+            String[] parts = hourRange.split("\\s*-\\s*");
+            if (parts.length < 2) {
+                return null;
+            }
+            String endTimeStr = parts[1].trim();
+
+            if (endTimeStr.matches("\\d{1,2}:\\d{2}")) {
+                String[] timeParts = endTimeStr.split(":");
+                int hour = Integer.parseInt(timeParts[0]);
+                int minute = Integer.parseInt(timeParts[1]);
+                return LocalTime.of(hour, minute);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Checks if a midnight outage (starting at 00:00) is a continuation of previous day's outage.
+     *
+     * <p>Example: If yesterday has "22:00 - 00:00" and today has "00:00 - 02:00",
+     * the today's outage is a continuation, not a new outage.
+     *
+     * @param queue the power queue to check
+     * @param outageDate the date of the midnight outage
+     * @return true if this is a continuation of previous day's outage
+     */
+    boolean isContinuationOfPreviousOutage(String queue, LocalDate outageDate) {
+        LocalDate previousDay = outageDate.minusDays(1);
+        DailySchedule previousSchedule = parser.getScheduleForDate(previousDay);
+
+        if (previousSchedule == null || !previousSchedule.hasData()) {
+            return false;
+        }
+
+        List<String> previousHours = previousSchedule.getHoursForQueue(queue);
+        if (previousHours == null || previousHours.isEmpty()) {
+            return false;
+        }
+
+        // Check if any period from previous day ends at 00:00 (midnight)
+        for (String hourRange : previousHours) {
+            LocalTime endTime = parseEndTime(hourRange);
+            if (endTime != null && endTime.equals(LocalTime.MIDNIGHT)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
