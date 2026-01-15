@@ -62,57 +62,32 @@ class KeyboardFactoryTest {
     }
 
     @Nested
-    @DisplayName("Inline main menu tests (legacy)")
-    class MainMenuTests {
+    @DisplayName("Share keyboard tests")
+    class ShareKeyboardTests {
 
         @Test
-        @DisplayName("Should create inline main menu with basic buttons")
-        void shouldCreateMainMenuWithBasicButtons() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu();
+        @DisplayName("Should create share keyboard with URL button")
+        void shouldCreateShareKeyboard() {
+            InlineKeyboardMarkup keyboard = KeyboardFactory.shareKeyboard();
 
             assertNotNull(keyboard);
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
-            // Should have at least 5 rows (Today/All/Tomorrow, Share, MyQueue/Notifications, About)
-            assertTrue(rows.size() >= 4);
-
-            // First row: Today, All schedules, Tomorrow
-            assertEquals(3, rows.get(0).size());
-            assertEquals(KeyboardFactory.CB_TODAY, rows.get(0).get(0).getCallbackData());
-            assertEquals(KeyboardFactory.CB_ALL, rows.get(0).get(1).getCallbackData());
-            assertEquals(KeyboardFactory.CB_TOMORROW, rows.get(0).get(2).getCallbackData());
-
-            // Second row: Share button (URL button, no callback data)
-            assertEquals(1, rows.get(1).size());
-            assertEquals(KeyboardFactory.SHARE_BOT_URL, rows.get(1).get(0).getUrl());
+            // Should have 1 row with share button
+            assertEquals(1, rows.size());
+            assertEquals(1, rows.get(0).size());
+            assertEquals(KeyboardFactory.SHARE_BOT_URL, rows.get(0).get(0).getUrl());
         }
 
         @Test
-        @DisplayName("Should include feedback button when showFeedback is true")
-        void shouldIncludeFeedbackButton() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu(true);
+        @DisplayName("Share button should have correct text")
+        void shouldHaveCorrectButtonText() {
+            InlineKeyboardMarkup keyboard = KeyboardFactory.shareKeyboard();
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
+            String buttonText = rows.get(0).get(0).getText();
 
-            boolean hasFeedback = rows.stream()
-                .flatMap(List::stream)
-                .anyMatch(btn -> KeyboardFactory.CB_FEEDBACK.equals(btn.getCallbackData()));
-
-            assertTrue(hasFeedback);
-        }
-
-        @Test
-        @DisplayName("Should not include feedback button by default")
-        void shouldNotIncludeFeedbackButtonByDefault() {
-            InlineKeyboardMarkup keyboard = KeyboardFactory.mainMenu();
-
-            List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
-
-            boolean hasFeedback = rows.stream()
-                .flatMap(List::stream)
-                .anyMatch(btn -> KeyboardFactory.CB_FEEDBACK.equals(btn.getCallbackData()));
-
-            assertFalse(hasFeedback);
+            assertTrue(buttonText.contains("Поділитися"));
         }
     }
 
