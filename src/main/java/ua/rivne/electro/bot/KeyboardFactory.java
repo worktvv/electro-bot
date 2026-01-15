@@ -94,62 +94,16 @@ public class KeyboardFactory {
     }
 
     /**
-     * Creates the main menu inline keyboard without optional buttons.
+     * Creates inline keyboard with share button for schedule messages.
      *
-     * @return inline keyboard with standard menu options
-     * @see #mainMenu(boolean)
+     * @return inline keyboard with share bot button
      */
-    public static InlineKeyboardMarkup mainMenu() {
-        return mainMenu(false);
-    }
-
-    /**
-     * Creates the main menu inline keyboard.
-     *
-     * <p>The menu includes:
-     * <ul>
-     *   <li>"📅 Сьогодні" / "📆 Завтра" - View today's/tomorrow's schedule</li>
-     *   <li>"📊 Всі графіки" - View all available schedules</li>
-     *   <li>"🔌 Моя черга" / "🔔 Сповіщення" - Queue and notification settings</li>
-     *   <li>"ℹ️ Про бота" - About the bot</li>
-     *   <li>"💬 Цей бот корисний?" - Feedback (optional)</li>
-     * </ul>
-     *
-     * @param showFeedback if true, includes the feedback button for users who haven't liked yet
-     * @return configured InlineKeyboardMarkup
-     */
-    public static InlineKeyboardMarkup mainMenu(boolean showFeedback) {
+    public static InlineKeyboardMarkup shareKeyboard() {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
-        // First row: Today, All schedules, Tomorrow
-        keyboard.add(List.of(
-            button("📅 Сьогодні", CB_TODAY),
-            button("📊 Всі графіки", CB_ALL),
-            button("📆 Завтра", CB_TOMORROW)
-        ));
-
-        // Second row: Share bot
         keyboard.add(List.of(
             urlButton("📤 Поділитися ботом", SHARE_BOT_URL)
         ));
-
-        // Third row
-        keyboard.add(List.of(
-            button("🔌 Моя черга", CB_MY_QUEUE),
-            button("🔔 Сповіщення", CB_NOTIFICATIONS)
-        ));
-
-        // Fourth row
-        keyboard.add(List.of(
-            button("ℹ️ Про бота", CB_ABOUT)
-        ));
-
-        // Fifth row - feedback (only if user hasn't liked yet)
-        if (showFeedback) {
-            keyboard.add(List.of(
-                button("💬 Цей бот корисний?", CB_FEEDBACK)
-            ));
-        }
 
         return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
     }
