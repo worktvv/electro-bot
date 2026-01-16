@@ -6,6 +6,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import ua.rivne.electro.config.Config;
 import ua.rivne.electro.model.DailySchedule;
+import ua.rivne.electro.service.DatabaseService;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -69,13 +71,25 @@ public class ScheduleParser {
     private volatile LocalDateTime lastCacheUpdate = null;
     private volatile boolean lastFetchFailed = false;
     private final ScheduledExecutorService cacheUpdater;
+    private final DatabaseService db;
 
     /**
-     * Creates a new ScheduleParser instance.
+     * Creates a new ScheduleParser instance without database persistence.
      * Call {@link #startCacheUpdater()} to begin automatic cache updates.
      */
     public ScheduleParser() {
+        this(null);
+    }
+
+    /**
+     * Creates a new ScheduleParser instance with database persistence.
+     * Call {@link #startCacheUpdater()} to begin automatic cache updates.
+     *
+     * @param db DatabaseService for persisting schedules (can be null)
+     */
+    public ScheduleParser(DatabaseService db) {
         this.cacheUpdater = Executors.newSingleThreadScheduledExecutor();
+        this.db = db;
     }
 
     /**
@@ -86,7 +100,10 @@ public class ScheduleParser {
      * updates every {@value #CACHE_UPDATE_INTERVAL_MINUTES} minutes.
      */
     public void startCacheUpdater() {
-        // Initial fetch
+        // First, try to load from database
+        loadFromDatabase();
+
+        // Then fetch from website
         refreshCache();
 
         // Schedule periodic updates
@@ -115,11 +132,15 @@ public class ScheduleParser {
             cachedSchedules = schedules;
             lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
             lastFetchFailed = false;
+
+            // Save to database
+            saveToDatabase(schedules);
+
             System.out.println("✅ Cache updated at " + lastCacheUpdate + ", " + schedules.size() + " days loaded");
         } catch (IOException e) {
             System.err.println("❌ Failed to update cache: " + e.getMessage());
             lastFetchFailed = true;
-            // Keep old cache if update fails
+            // Keep old cache (from memory or database) if update fails
         }
     }
 
@@ -361,6 +382,119 @@ public class ScheduleParser {
      */
     public boolean isSourceUnavailable() {
         return lastFetchFailed && !cachedSchedules.isEmpty();
+    }
+
+    // ==================== Database Persistence ====================
+
+    /**
+     * Saves schedules to database.
+     */
+    private void saveToDatabase(List<DailySchedule> schedules) {
+        if (db == null) return;
+
+        for (DailySchedule schedule : schedules) {
+            String json = scheduleToJson(schedule);
+            db.saveSchedule(schedule.getDate(), json);
+        }
+    }
+
+    /**
+     * Loads schedules from database into cache.
+     */
+    private void loadFromDatabase() {
+        if (db == null) return;
+
+        Map<String, String> storedSchedules = db.loadAllSchedules();
+        if (storedSchedules.isEmpty()) {
+            System.out.println("📂 No schedules in database");
+            return;
+        }
+
+        List<DailySchedule> schedules = new ArrayList<>();
+        for (Map.Entry<String, String> entry : storedSchedules.entrySet()) {
+            DailySchedule schedule = jsonToSchedule(entry.getKey(), entry.getValue());
+            if (schedule != null) {
+                schedules.add(schedule);
+            }
+        }
+
+        if (!schedules.isEmpty()) {
+            cachedSchedules = schedules;
+            System.out.println("📂 Loaded " + schedules.size() + " schedules from database");
+        }
+    }
+
+    /**
+     * Converts DailySchedule to JSON string.
+     * Format: {"1.1":["08:00 - 12:00","16:00 - 20:00"],"1.2":["10:00 - 14:00"]}
+     */
+    private String scheduleToJson(DailySchedule schedule) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, List<String>> entry : schedule.getAllQueues().entrySet()) {
+            if (!first) sb.append(",");
+            first = false;
+            sb.append("\"").append(entry.getKey()).append("\":[");
+            boolean firstHour = true;
+            for (String hour : entry.getValue()) {
+                if (!firstHour) sb.append(",");
+                firstHour = false;
+                sb.append("\"").append(hour).append("\"");
+            }
+            sb.append("]");
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    /**
+     * Converts JSON string to DailySchedule.
+     */
+    private DailySchedule jsonToSchedule(String date, String json) {
+        try {
+            DailySchedule schedule = new DailySchedule(date);
+
+            // Simple JSON parsing (no external library needed)
+            // Format: {"1.1":["08:00 - 12:00","16:00 - 20:00"],"1.2":[]}
+            String content = json.substring(1, json.length() - 1); // Remove { }
+            if (content.isEmpty()) return schedule;
+
+            // Split by queue entries
+            int pos = 0;
+            while (pos < content.length()) {
+                // Find queue name
+                int qStart = content.indexOf("\"", pos) + 1;
+                int qEnd = content.indexOf("\"", qStart);
+                String queue = content.substring(qStart, qEnd);
+
+                // Find hours array
+                int arrStart = content.indexOf("[", qEnd) + 1;
+                int arrEnd = content.indexOf("]", arrStart);
+                String hoursStr = content.substring(arrStart, arrEnd);
+
+                List<String> hours = new ArrayList<>();
+                if (!hoursStr.isEmpty()) {
+                    // Parse hours: "08:00 - 12:00","16:00 - 20:00"
+                    String[] hourParts = hoursStr.split("\",\"");
+                    for (String hour : hourParts) {
+                        hours.add(hour.replace("\"", ""));
+                    }
+                }
+
+                schedule.addQueueHours(queue, hours);
+                pos = arrEnd + 1;
+
+                // Skip comma if present
+                if (pos < content.length() && content.charAt(pos) == ',') {
+                    pos++;
+                }
+            }
+
+            return schedule;
+        } catch (Exception e) {
+            System.err.println("Failed to parse schedule JSON: " + e.getMessage());
+            return null;
+        }
     }
 }
 
