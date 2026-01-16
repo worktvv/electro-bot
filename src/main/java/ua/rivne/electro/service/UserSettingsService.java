@@ -1,5 +1,6 @@
 package ua.rivne.electro.service;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -9,6 +10,9 @@ import java.util.Set;
 public class UserSettingsService {
 
     private final DatabaseService db;
+
+    // In-memory set for tracking users waiting to send feedback (temporary state)
+    private final Set<Long> usersWaitingForFeedback = new HashSet<>();
 
     public UserSettingsService(DatabaseService db) {
         this.db = db;
@@ -48,6 +52,26 @@ public class UserSettingsService {
 
     public int getLikesCount() {
         return db.getLikesCount();
+    }
+
+    // === Feedback state management (in-memory) ===
+
+    /**
+     * Sets user to waiting for feedback state.
+     */
+    public void setWaitingForFeedback(long chatId, boolean waiting) {
+        if (waiting) {
+            usersWaitingForFeedback.add(chatId);
+        } else {
+            usersWaitingForFeedback.remove(chatId);
+        }
+    }
+
+    /**
+     * Checks if user is waiting to send feedback.
+     */
+    public boolean isWaitingForFeedback(long chatId) {
+        return usersWaitingForFeedback.contains(chatId);
     }
 }
 
