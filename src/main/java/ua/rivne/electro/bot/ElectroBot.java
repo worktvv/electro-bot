@@ -144,6 +144,12 @@ public class ElectroBot extends TelegramLongPollingBot {
                     case "/debug":
                         sendDebugInfo(chatId);
                         break;
+                    case "/check":
+                        checkWebsite(chatId);
+                        break;
+                    case "/refresh":
+                        forceRefreshCache(chatId);
+                        break;
                     case "/cancel":
                         sendMessage(chatId, "❌ Скасовано.");
                         break;
@@ -436,7 +442,16 @@ public class ElectroBot extends TelegramLongPollingBot {
             for (Map.Entry<String, Integer> entry : actions.entrySet()) {
                 sb.append(String.format("• %s: *%d*\n", entry.getKey(), entry.getValue()));
             }
+            sb.append("\n");
         }
+
+        // Cache and website status
+        sb.append("🌐 *Джерело даних:*\n");
+        sb.append(String.format("• Кеш: %s\n", parser.hasCachedData() ? "✅ є дані" : "❌ порожній"));
+        sb.append(String.format("• Оновлено: %s\n",
+                parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+        sb.append(String.format("• Остання спроба: %s\n", parser.isLastFetchFailed() ? "❌ невдала" : "✅ успішна"));
+        sb.append("\n_Команди: /check, /refresh_");
 
         // Send with close button and save message_id for auto-delete
         try {
@@ -464,6 +479,74 @@ public class ElectroBot extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
             // Message may already be deleted
         }
+    }
+
+    /**
+     * Checks website availability (admin only).
+     */
+    private void checkWebsite(long chatId) {
+        if (!config.isAdmin(chatId)) {
+            sendMessage(chatId, "⛔ Ця команда доступна тільки адміністратору.");
+            return;
+        }
+
+        sendMessage(chatId, "🔍 Перевіряю доступність сайту...");
+
+        // Run check in background to not block
+        new Thread(() -> {
+            var status = parser.checkWebsiteStatus();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("🌐 *Перевірка сайту*\n\n");
+            sb.append(String.format("URL: `%s`\n\n", Config.SCHEDULE_URL));
+            sb.append(String.format("*Статус:* %s\n\n", status.toString()));
+
+            sb.append("*Стан кешу:*\n");
+            sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "✅ так" : "❌ ні"));
+            sb.append(String.format("• Останнє оновлення: %s\n",
+                    parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+            sb.append(String.format("• Остання спроба невдала: %s\n", parser.isLastFetchFailed() ? "❌ так" : "✅ ні"));
+
+            if (!parser.hasCachedData()) {
+                sb.append("\n⚠️ *Кеш порожній!* Використайте /refresh для примусового оновлення.");
+            }
+
+            sendMarkdownMessage(chatId, sb.toString());
+        }).start();
+    }
+
+    /**
+     * Forces cache refresh from website (admin only).
+     */
+    private void forceRefreshCache(long chatId) {
+        if (!config.isAdmin(chatId)) {
+            sendMessage(chatId, "⛔ Ця команда доступна тільки адміністратору.");
+            return;
+        }
+
+        sendMessage(chatId, "🔄 Примусове оновлення кешу...");
+
+        // Run refresh in background
+        new Thread(() -> {
+            parser.forceRefresh();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("🔄 *Результат оновлення*\n\n");
+            sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "✅ так" : "❌ ні"));
+            sb.append(String.format("• Останнє оновлення: %s\n",
+                    parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+            sb.append(String.format("• Остання спроба невдала: %s\n", parser.isLastFetchFailed() ? "❌ так" : "✅ ні"));
+
+            if (parser.hasCachedData()) {
+                var schedules = parser.fetchSchedules();
+                sb.append(String.format("\n📊 Завантажено графіків: %d\n", schedules.size()));
+                for (var schedule : schedules) {
+                    sb.append(String.format("• %s: %d черг\n", schedule.getDate(), schedule.getAllQueues().size()));
+                }
+            }
+
+            sendMarkdownMessage(chatId, sb.toString());
+        }).start();
     }
 
     /**
