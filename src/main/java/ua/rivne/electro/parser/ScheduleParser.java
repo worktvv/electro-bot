@@ -127,7 +127,7 @@ public class ScheduleParser {
      * Refreshes the cache by fetching data from the website.
      */
     private void refreshCache() {
-        System.out.println("🔄 Attempting to refresh cache from website...");
+        System.out.println("🔄 Attempting to refresh cache from website at " + LocalDateTime.now(KYIV_ZONE));
         try {
             List<DailySchedule> schedules = fetchSchedulesFromWebsite();
 
@@ -147,11 +147,11 @@ public class ScheduleParser {
 
             System.out.println("✅ Cache updated at " + lastCacheUpdate + ", " + schedules.size() + " days loaded");
         } catch (IOException e) {
-            System.err.println("❌ Failed to update cache: " + e.getMessage());
+            System.err.println("❌ Failed to update cache (IOException): " + e.getClass().getSimpleName() + " - " + e.getMessage());
             lastFetchFailed = true;
             // Keep old cache (from memory or database) if update fails
         } catch (Exception e) {
-            System.err.println("❌ Unexpected error during cache refresh: " + e.getMessage());
+            System.err.println("❌ Unexpected error during cache refresh: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             e.printStackTrace();
             lastFetchFailed = true;
         }
@@ -213,12 +213,20 @@ public class ScheduleParser {
     private List<DailySchedule> fetchSchedulesFromWebsite() throws IOException {
         List<DailySchedule> schedules = new ArrayList<>();
 
+        System.out.println("🌐 Connecting to: " + Config.SCHEDULE_URL);
+        long startTime = System.currentTimeMillis();
+
         // Load page (ignoring SSL errors)
         Document doc = Jsoup.connect(Config.SCHEDULE_URL)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .timeout(10000)
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .timeout(30000)  // Increased timeout to 30 seconds
                 .sslSocketFactory(getInsecureSSLSocketFactory())
+                .ignoreHttpErrors(true)
+                .followRedirects(true)
                 .get();
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        System.out.println("🌐 Page loaded in " + elapsed + "ms");
 
         // Find schedule table
         Element table = doc.selectFirst("table");
