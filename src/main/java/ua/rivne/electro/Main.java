@@ -6,6 +6,8 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import ua.rivne.electro.bot.ElectroBot;
 import ua.rivne.electro.config.Config;
 
+import java.util.TimeZone;
+
 /**
  * Main class for launching the Telegram bot.
  *
@@ -15,6 +17,9 @@ import ua.rivne.electro.config.Config;
 public class Main {
 
     public static void main(String[] args) {
+        // Fix timezone for PostgreSQL compatibility (Europe/Kiev is deprecated)
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/Kyiv"));
+
         System.out.println("🔌 Starting Electro Bot...");
 
         try {
