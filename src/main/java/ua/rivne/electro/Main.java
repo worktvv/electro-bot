@@ -17,8 +17,8 @@ import java.util.TimeZone;
 public class Main {
 
     public static void main(String[] args) {
-        // Fix timezone for PostgreSQL compatibility (Europe/Kiev is deprecated)
-        TimeZone.setDefault(TimeZone.getTimeZone("Europe/Kyiv"));
+        // Fix timezone for PostgreSQL compatibility (use UTC for DB connection)
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 
         System.out.println("🔌 Starting Electro Bot...");
 
