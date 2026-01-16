@@ -40,6 +40,7 @@ public class KeyboardFactory {
     public static final String CB_FEEDBACK = "feedback";
     public static final String CB_LIKE = "like";
     public static final String CB_CLOSE_STATS = "close_stats";
+    public static final String CB_CONTACT_DEV = "contact_dev";
 
     // Share bot URL
     public static final String SHARE_BOT_URL = "https://t.me/share/url?url=https://t.me/electrorivne_bot";
@@ -109,12 +110,24 @@ public class KeyboardFactory {
     }
 
     /**
-     * Feedback menu keyboard (just like button, no back - use persistent menu).
+     * Feedback menu keyboard with like button (for users who haven't liked yet).
      */
     public static InlineKeyboardMarkup feedbackMenu() {
         List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
         keyboard.add(List.of(button("👍 Так, бот корисний!", CB_LIKE)));
+        keyboard.add(List.of(button("📩 Написати розробнику", CB_CONTACT_DEV)));
+
+        return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
+    }
+
+    /**
+     * About menu keyboard with contact button only (for users who already liked).
+     */
+    public static InlineKeyboardMarkup aboutMenu() {
+        List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+
+        keyboard.add(List.of(button("📩 Написати розробнику", CB_CONTACT_DEV)));
 
         return InlineKeyboardMarkup.builder().keyboard(keyboard).build();
     }
