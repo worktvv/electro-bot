@@ -18,6 +18,7 @@ import ua.rivne.electro.service.DatabaseService;
 import ua.rivne.electro.service.NotificationService;
 import ua.rivne.electro.service.UserSettingsService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -598,6 +599,17 @@ public class ElectroBot extends TelegramLongPollingBot {
         if (schedules.isEmpty()) {
             return "❌ Графіки не знайдено.";
         }
+        // Sort by date chronologically (oldest first)
+        DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+        schedules.sort((a, b) -> {
+            try {
+                LocalDate dateA = LocalDate.parse(a.getDate(), dateFormat);
+                LocalDate dateB = LocalDate.parse(b.getDate(), dateFormat);
+                return dateA.compareTo(dateB);
+            } catch (Exception e) {
+                return a.getDate().compareTo(b.getDate());
+            }
+        });
         String userQueue = userSettings.getUserQueue(chatId);
         StringBuilder sb = new StringBuilder("📊 *Всі графіки:*\n\n");
         for (DailySchedule schedule : schedules) {
