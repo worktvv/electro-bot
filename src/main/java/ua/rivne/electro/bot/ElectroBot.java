@@ -66,12 +66,12 @@ public class ElectroBot extends TelegramLongPollingBot {
     public ElectroBot(Config config) {
         super(config.getBotToken());
         this.config = config;
-        this.parser = new ScheduleParser();
         this.databaseService = new DatabaseService(config.getDatabaseUrl());
+        this.parser = new ScheduleParser(databaseService);
         this.userSettings = new UserSettingsService(databaseService);
         this.notificationService = new NotificationService(parser, userSettings);
 
-        // Start cache updater (fetches data every 30 min)
+        // Start cache updater (loads from DB, then fetches from website every 30 min)
         parser.startCacheUpdater();
 
         // Configure notification service
