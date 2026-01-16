@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -67,11 +68,86 @@ public class ScheduleParser {
     /** Date format used in the source website */
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
+    /** Browser profiles for rotation to avoid blocking */
+    private static final BrowserProfile[] BROWSER_PROFILES = {
+        // Chrome on Windows 10
+        new BrowserProfile(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+            "https://www.google.com.ua/"
+        ),
+        // Firefox on Windows 10
+        new BrowserProfile(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "uk-UA,uk;q=0.8,en-US;q=0.5,en;q=0.3",
+            "https://www.google.com.ua/"
+        ),
+        // Edge on Windows 11
+        new BrowserProfile(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "uk,en-US;q=0.9,en;q=0.8",
+            "https://www.bing.com/"
+        ),
+        // Chrome on Android
+        new BrowserProfile(
+            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "uk-UA,uk;q=0.9,en;q=0.8",
+            "https://www.google.com/"
+        ),
+        // Safari on macOS
+        new BrowserProfile(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "uk-UA,uk;q=0.9",
+            "https://www.google.com.ua/"
+        )
+    };
+
+    private static final Random random = new Random();
+    private volatile int lastProfileIndex = -1;
+
     private volatile List<DailySchedule> cachedSchedules = Collections.emptyList();
     private volatile LocalDateTime lastCacheUpdate = null;
     private volatile boolean lastFetchFailed = false;
     private final ScheduledExecutorService cacheUpdater;
     private final DatabaseService db;
+
+    /**
+     * Browser profile for HTTP requests.
+     */
+    private static class BrowserProfile {
+        final String userAgent;
+        final String accept;
+        final String acceptLanguage;
+        final String referer;
+
+        BrowserProfile(String userAgent, String accept, String acceptLanguage, String referer) {
+            this.userAgent = userAgent;
+            this.accept = accept;
+            this.acceptLanguage = acceptLanguage;
+            this.referer = referer;
+        }
+    }
+
+    /**
+     * Gets next browser profile, ensuring it's different from the last one used.
+     */
+    private BrowserProfile getNextBrowserProfile() {
+        int newIndex;
+        if (BROWSER_PROFILES.length <= 1) {
+            newIndex = 0;
+        } else {
+            do {
+                newIndex = random.nextInt(BROWSER_PROFILES.length);
+            } while (newIndex == lastProfileIndex);
+        }
+        lastProfileIndex = newIndex;
+        return BROWSER_PROFILES[newIndex];
+    }
 
     /**
      * Creates a new ScheduleParser instance without database persistence.
@@ -213,13 +289,27 @@ public class ScheduleParser {
     private List<DailySchedule> fetchSchedulesFromWebsite() throws IOException {
         List<DailySchedule> schedules = new ArrayList<>();
 
+        // Get random browser profile (different from last one)
+        BrowserProfile profile = getNextBrowserProfile();
         System.out.println("🌐 Connecting to: " + Config.SCHEDULE_URL);
+        System.out.println("🌐 Using browser: " + profile.userAgent.substring(0, Math.min(50, profile.userAgent.length())) + "...");
         long startTime = System.currentTimeMillis();
 
-        // Load page (ignoring SSL errors)
+        // Load page with realistic browser headers
         Document doc = Jsoup.connect(Config.SCHEDULE_URL)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .timeout(30000)  // Increased timeout to 30 seconds
+                .userAgent(profile.userAgent)
+                .header("Accept", profile.accept)
+                .header("Accept-Language", profile.acceptLanguage)
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Connection", "keep-alive")
+                .header("Upgrade-Insecure-Requests", "1")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "cross-site")
+                .header("Sec-Fetch-User", "?1")
+                .header("Cache-Control", "max-age=0")
+                .referrer(profile.referer)
+                .timeout(30000)  // 30 seconds timeout
                 .sslSocketFactory(getInsecureSSLSocketFactory())
                 .ignoreHttpErrors(true)
                 .followRedirects(true)
@@ -419,10 +509,17 @@ public class ScheduleParser {
      * @return WebsiteStatus with connection details
      */
     public WebsiteStatus checkWebsiteStatus() {
+        BrowserProfile profile = getNextBrowserProfile();
         long startTime = System.currentTimeMillis();
         try {
             Document doc = Jsoup.connect(Config.SCHEDULE_URL)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .userAgent(profile.userAgent)
+                    .header("Accept", profile.accept)
+                    .header("Accept-Language", profile.acceptLanguage)
+                    .header("Accept-Encoding", "gzip, deflate, br")
+                    .header("Connection", "keep-alive")
+                    .header("Upgrade-Insecure-Requests", "1")
+                    .referrer(profile.referer)
                     .timeout(15000)
                     .sslSocketFactory(getInsecureSSLSocketFactory())
                     .ignoreHttpErrors(true)
@@ -436,10 +533,10 @@ public class ScheduleParser {
             boolean hasTable = table != null;
             int rowCount = hasTable ? table.select("tr").size() : 0;
 
-            return new WebsiteStatus(true, elapsed, null, hasTable, rowCount);
+            return new WebsiteStatus(true, elapsed, null, hasTable, rowCount, profile.userAgent);
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
-            return new WebsiteStatus(false, elapsed, e.getClass().getSimpleName() + ": " + e.getMessage(), false, 0);
+            return new WebsiteStatus(false, elapsed, e.getClass().getSimpleName() + ": " + e.getMessage(), false, 0, profile.userAgent);
         }
     }
 
@@ -452,22 +549,25 @@ public class ScheduleParser {
         public final String error;
         public final boolean hasScheduleTable;
         public final int tableRowCount;
+        public final String userAgent;
 
-        public WebsiteStatus(boolean reachable, long responseTimeMs, String error, boolean hasScheduleTable, int tableRowCount) {
+        public WebsiteStatus(boolean reachable, long responseTimeMs, String error, boolean hasScheduleTable, int tableRowCount, String userAgent) {
             this.reachable = reachable;
             this.responseTimeMs = responseTimeMs;
             this.error = error;
             this.hasScheduleTable = hasScheduleTable;
             this.tableRowCount = tableRowCount;
+            this.userAgent = userAgent;
         }
 
         @Override
         public String toString() {
+            String browserShort = userAgent != null ? userAgent.substring(0, Math.min(40, userAgent.length())) + "..." : "unknown";
             if (reachable) {
-                return String.format("✅ Доступний (%dms), таблиця: %s, рядків: %d",
-                        responseTimeMs, hasScheduleTable ? "є" : "немає", tableRowCount);
+                return String.format("✅ Доступний (%dms), таблиця: %s, рядків: %d\nБраузер: %s",
+                        responseTimeMs, hasScheduleTable ? "є" : "немає", tableRowCount, browserShort);
             } else {
-                return String.format("❌ Недоступний (%dms): %s", responseTimeMs, error);
+                return String.format("❌ Недоступний (%dms): %s\nБраузер: %s", responseTimeMs, error, browserShort);
             }
         }
     }
