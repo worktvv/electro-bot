@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class NotificationService {
 
     /** Timezone for all time calculations */
-    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
+    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kyiv");
 
     /** How often to check for upcoming outages (in minutes) */
     private static final int CHECK_INTERVAL_MINUTES = 1;
