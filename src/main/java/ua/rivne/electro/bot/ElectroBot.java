@@ -98,11 +98,26 @@ public class ElectroBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
             String userName = update.getMessage().getFrom().getFirstName();
 
+            // Handle admin reply to forwarded feedback
+            if (config.isAdmin(chatId) && update.getMessage().isReply()) {
+                handleAdminReply(update.getMessage());
+                return;
+            }
+
+            // Handle user feedback message (if waiting for feedback)
+            if (userSettings.isWaitingForFeedback(chatId) && !messageText.startsWith("/")) {
+                handleUserFeedback(chatId, userName, messageText, update.getMessage().getFrom().getUserName());
+                return;
+            }
+
             // Log command event
             databaseService.logEvent(chatId, "command", messageText);
 
             // Handle slash commands
             if (messageText.startsWith("/")) {
+                // Cancel feedback mode on any command
+                userSettings.setWaitingForFeedback(chatId, false);
+
                 switch (messageText) {
                     case "/start":
                         sendWelcomeMessage(chatId, userName);
@@ -128,10 +143,15 @@ public class ElectroBot extends TelegramLongPollingBot {
                     case "/debug":
                         sendDebugInfo(chatId);
                         break;
+                    case "/cancel":
+                        sendMessage(chatId, "❌ Скасовано.");
+                        break;
                     default:
                         sendMessage(chatId, "🤔 Невідома команда. Напишіть /help для списку команд.");
                 }
             } else {
+                // Cancel feedback mode on menu button press
+                userSettings.setWaitingForFeedback(chatId, false);
                 // Handle menu button text commands
                 handleMenuButtonCommand(chatId, messageText);
             }
@@ -181,6 +201,8 @@ public class ElectroBot extends TelegramLongPollingBot {
             handleLike(chatId, messageId);
         } else if (data.equals(KeyboardFactory.CB_BACK)) {
             showMainMenu(chatId, messageId);
+        } else if (data.equals(KeyboardFactory.CB_CONTACT_DEV)) {
+            startContactDev(chatId, messageId);
         }
     }
 
@@ -237,7 +259,6 @@ public class ElectroBot extends TelegramLongPollingBot {
             "• Надсилати сповіщення за 30 хв та 5 хв до відключення\n" +
             "• Зберігати вашу чергу для швидкого доступу\n\n" +
             "👍 Цей бот корисний *%d* %s\n\n" +
-            "📧 Адміністратор: email@example.com\n\n" +
             "Використовуйте меню нижче 👇",
             userName, likesCount, getUserDeclension(likesCount)
         );
@@ -332,15 +353,14 @@ public class ElectroBot extends TelegramLongPollingBot {
             "• Показувати актуальний графік відключень\n" +
             "• Надсилати сповіщення за 30 хв та 5 хв до відключення\n" +
             "• Зберігати вашу чергу для швидкого доступу\n\n" +
-            "👍 Цей бот корисний *%d* %s\n\n" +
-            "📧 Адміністратор: email@example.com",
+            "👍 Цей бот корисний *%d* %s",
             likesCount, getUserDeclension(likesCount)
         );
 
         if (!hasLiked) {
             sendMessageWithInlineKeyboard(chatId, text, KeyboardFactory.feedbackMenu());
         } else {
-            sendMarkdownMessage(chatId, text);
+            sendMessageWithInlineKeyboard(chatId, text, KeyboardFactory.aboutMenu());
         }
     }
 
@@ -663,15 +683,14 @@ public class ElectroBot extends TelegramLongPollingBot {
             "• Показувати актуальний графік відключень\n" +
             "• Надсилати сповіщення за 30 хв та 5 хв до відключення\n" +
             "• Зберігати вашу чергу для швидкого доступу\n\n" +
-            "👍 Цей бот корисний *%d* %s\n\n" +
-            "📧 Адміністратор: email@example.com",
+            "👍 Цей бот корисний *%d* %s",
             likesCount, getUserDeclension(likesCount)
         );
-        // Show feedback button if user hasn't liked yet
+        // Show feedback button if user hasn't liked yet, otherwise show contact button
         if (!hasLiked) {
             editMessage(chatId, messageId, text, KeyboardFactory.feedbackMenu());
         } else {
-            editMessage(chatId, messageId, text, null);
+            editMessage(chatId, messageId, text, KeyboardFactory.aboutMenu());
         }
     }
 
@@ -694,7 +713,95 @@ public class ElectroBot extends TelegramLongPollingBot {
             "👍 Цей бот сподобався *%d* %s.",
             likesCount, getUserDeclension(likesCount)
         );
+        editMessage(chatId, messageId, text, KeyboardFactory.aboutMenu());
+    }
+
+    // === Contact developer methods ===
+
+    /**
+     * Starts the contact developer flow - puts user in waiting state.
+     */
+    private void startContactDev(long chatId, int messageId) {
+        userSettings.setWaitingForFeedback(chatId, true);
+        String text = "✏️ *Напишіть ваше повідомлення*\n\n" +
+            "Я передам його розробнику. Він зможе відповісти вам через цей бот.\n\n" +
+            "Для скасування натисніть /cancel або будь-яку кнопку меню.";
         editMessage(chatId, messageId, text, null);
+    }
+
+    /**
+     * Handles user feedback message and forwards it to admin.
+     */
+    private void handleUserFeedback(long chatId, String firstName, String messageText, String username) {
+        userSettings.setWaitingForFeedback(chatId, false);
+
+        Long adminChatId = config.getAdminChatId();
+        if (adminChatId == null) {
+            sendMessage(chatId, "⚠️ На жаль, зв'язок з розробником тимчасово недоступний.");
+            return;
+        }
+
+        // Format message for admin
+        String usernameInfo = username != null ? " (@" + username + ")" : "";
+        String adminMessage = String.format(
+            "📩 *Нове повідомлення*\n" +
+            "━━━━━━━━━━━━━━━━━━━━\n" +
+            "👤 Від: %s%s\n" +
+            "🆔 ID: `%d`\n" +
+            "━━━━━━━━━━━━━━━━━━━━\n\n" +
+            "%s\n\n" +
+            "_Щоб відповісти, зробіть Reply на це повідомлення_",
+            firstName, usernameInfo, chatId, messageText
+        );
+
+        // Send to admin
+        sendMarkdownMessage(adminChatId, adminMessage);
+
+        // Confirm to user
+        sendMessage(chatId, "✅ Дякую! Ваше повідомлення передано розробнику.");
+    }
+
+    /**
+     * Handles admin reply to forwarded feedback.
+     */
+    private void handleAdminReply(org.telegram.telegrambots.meta.api.objects.Message message) {
+        org.telegram.telegrambots.meta.api.objects.Message replyTo = message.getReplyToMessage();
+        if (replyTo == null || replyTo.getText() == null) {
+            return;
+        }
+
+        // Extract user chat ID from the forwarded message
+        String replyText = replyTo.getText();
+        Long userChatId = extractChatIdFromMessage(replyText);
+
+        if (userChatId == null) {
+            sendMessage(message.getChatId(), "⚠️ Не вдалося визначити отримувача. Переконайтесь, що ви відповідаєте на повідомлення з ID користувача.");
+            return;
+        }
+
+        // Send reply to user
+        String responseText = "💬 *Відповідь від розробника:*\n\n" + message.getText();
+        sendMarkdownMessage(userChatId, responseText);
+
+        // Confirm to admin
+        sendMessage(message.getChatId(), "✅ Відповідь надіслано користувачу.");
+    }
+
+    /**
+     * Extracts chat ID from forwarded feedback message.
+     */
+    private Long extractChatIdFromMessage(String text) {
+        // Look for pattern "🆔 ID: `123456789`"
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("ID: `(\\d+)`");
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            try {
+                return Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
