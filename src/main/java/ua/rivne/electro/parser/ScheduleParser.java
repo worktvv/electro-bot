@@ -127,8 +127,17 @@ public class ScheduleParser {
      * Refreshes the cache by fetching data from the website.
      */
     private void refreshCache() {
+        System.out.println("🔄 Attempting to refresh cache from website...");
         try {
             List<DailySchedule> schedules = fetchSchedulesFromWebsite();
+
+            // Only update cache if we got valid data
+            if (schedules.isEmpty()) {
+                System.out.println("⚠️ Website returned empty schedule, keeping existing cache");
+                lastFetchFailed = true;
+                return;
+            }
+
             cachedSchedules = schedules;
             lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
             lastFetchFailed = false;
@@ -141,6 +150,10 @@ public class ScheduleParser {
             System.err.println("❌ Failed to update cache: " + e.getMessage());
             lastFetchFailed = true;
             // Keep old cache (from memory or database) if update fails
+        } catch (Exception e) {
+            System.err.println("❌ Unexpected error during cache refresh: " + e.getMessage());
+            e.printStackTrace();
+            lastFetchFailed = true;
         }
     }
 
