@@ -67,6 +67,7 @@ public class ScheduleParser {
 
     private volatile List<DailySchedule> cachedSchedules = Collections.emptyList();
     private volatile LocalDateTime lastCacheUpdate = null;
+    private volatile boolean lastFetchFailed = false;
     private final ScheduledExecutorService cacheUpdater;
 
     /**
@@ -113,9 +114,11 @@ public class ScheduleParser {
             List<DailySchedule> schedules = fetchSchedulesFromWebsite();
             cachedSchedules = schedules;
             lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
+            lastFetchFailed = false;
             System.out.println("✅ Cache updated at " + lastCacheUpdate + ", " + schedules.size() + " days loaded");
         } catch (IOException e) {
             System.err.println("❌ Failed to update cache: " + e.getMessage());
+            lastFetchFailed = true;
             // Keep old cache if update fails
         }
     }
@@ -350,6 +353,14 @@ public class ScheduleParser {
      */
     public boolean hasCachedData() {
         return !cachedSchedules.isEmpty();
+    }
+
+    /**
+     * Checks if the last fetch attempt failed (source website unavailable).
+     * Returns true if we have cached data but the last refresh failed.
+     */
+    public boolean isSourceUnavailable() {
+        return lastFetchFailed && !cachedSchedules.isEmpty();
     }
 }
 
