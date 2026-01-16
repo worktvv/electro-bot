@@ -63,7 +63,7 @@ public class ScheduleParser {
     private static final int CACHE_UPDATE_INTERVAL_MINUTES = 30;
 
     /** Timezone for date calculations */
-    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kyiv");
+    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
 
     /** Date format used in the source website */
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
