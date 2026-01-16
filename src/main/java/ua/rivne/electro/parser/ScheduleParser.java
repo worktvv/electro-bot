@@ -420,7 +420,12 @@ public class ScheduleParser {
 
         if (!schedules.isEmpty()) {
             cachedSchedules = schedules;
-            System.out.println("📂 Loaded " + schedules.size() + " schedules from database");
+            // Get last update time from database
+            LocalDateTime dbUpdateTime = db.getSchedulesLastUpdate();
+            if (dbUpdateTime != null) {
+                lastCacheUpdate = dbUpdateTime;
+            }
+            System.out.println("📂 Loaded " + schedules.size() + " schedules from database (updated: " + lastCacheUpdate + ")");
         }
     }
 
