@@ -168,15 +168,28 @@ class KeyboardFactoryTest {
         }
 
         @Test
-        @DisplayName("Should create feedback menu with like button only")
+        @DisplayName("Should create feedback menu with like and contact buttons")
         void shouldCreateFeedbackMenu() {
             InlineKeyboardMarkup keyboard = KeyboardFactory.feedbackMenu();
 
             List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
 
-            // Only 1 row with like button - no back button (use persistent menu)
-            assertEquals(1, rows.size());
+            // 2 rows: like button and contact developer button
+            assertEquals(2, rows.size());
             assertEquals(KeyboardFactory.CB_LIKE, rows.get(0).get(0).getCallbackData());
+            assertEquals(KeyboardFactory.CB_CONTACT_DEV, rows.get(1).get(0).getCallbackData());
+        }
+
+        @Test
+        @DisplayName("Should create about menu with contact button only")
+        void shouldCreateAboutMenu() {
+            InlineKeyboardMarkup keyboard = KeyboardFactory.aboutMenu();
+
+            List<List<InlineKeyboardButton>> rows = keyboard.getKeyboard();
+
+            // 1 row with contact developer button
+            assertEquals(1, rows.size());
+            assertEquals(KeyboardFactory.CB_CONTACT_DEV, rows.get(0).get(0).getCallbackData());
         }
     }
 }
