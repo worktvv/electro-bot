@@ -552,11 +552,16 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Returns formatted string with last cache update time.
+     * Shows warning if source website is unavailable.
      */
     private String getLastUpdateText() {
         LocalDateTime lastUpdate = parser.getLastCacheUpdate();
         if (lastUpdate != null) {
-            return "\n\n_Дані оновлено " + lastUpdate.format(UPDATE_TIME_FORMAT) + "_";
+            String updateText = "\n\n_Дані оновлено " + lastUpdate.format(UPDATE_TIME_FORMAT) + "_";
+            if (parser.isSourceUnavailable()) {
+                updateText += "\n\n⚠️ _Дані можуть бути застарілі. Сайт Рівнеобленерго недоступний._";
+            }
+            return updateText;
         }
         return "";
     }
