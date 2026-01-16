@@ -791,8 +791,8 @@ public class ElectroBot extends TelegramLongPollingBot {
      * Extracts chat ID from forwarded feedback message.
      */
     private Long extractChatIdFromMessage(String text) {
-        // Look for pattern "🆔 ID: `123456789`"
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("ID: `(\\d+)`");
+        // Look for pattern "🆔 ID: 123456789" (with or without backticks)
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("ID:\\s*`?(\\d+)`?");
         java.util.regex.Matcher matcher = pattern.matcher(text);
         if (matcher.find()) {
             try {
