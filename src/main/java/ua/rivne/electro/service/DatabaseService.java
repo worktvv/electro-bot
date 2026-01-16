@@ -591,5 +591,27 @@ public class DatabaseService {
             e.printStackTrace();
         }
     }
+
+    /**
+     * Gets the latest update time from schedules table.
+     *
+     * @return latest updated_at timestamp, or null if no schedules
+     */
+    public java.time.LocalDateTime getSchedulesLastUpdate() {
+        String sql = "SELECT MAX(updated_at) FROM schedules";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                java.sql.Timestamp ts = rs.getTimestamp(1);
+                if (ts != null) {
+                    return ts.toLocalDateTime();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
 
