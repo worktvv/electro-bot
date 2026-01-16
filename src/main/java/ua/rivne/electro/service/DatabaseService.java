@@ -77,9 +77,11 @@ public class DatabaseService {
             String hostPort = slashParts[0];
             String database = slashParts[1];
 
-            String jdbcUrl = "jdbc:postgresql://" + hostPort + "/" + database;
+            String jdbcUrl = "jdbc:postgresql://" + hostPort + "/" + database + "?sslmode=require";
 
             config.setJdbcUrl(jdbcUrl);
+            // Fix timezone issue - PostgreSQL doesn't recognize "Europe/Kiev", use UTC
+            config.addDataSourceProperty("options", "-c timezone=UTC");
             config.setUsername(username);
             config.setPassword(password);
         } catch (Exception e) {
