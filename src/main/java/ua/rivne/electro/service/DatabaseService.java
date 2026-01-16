@@ -123,6 +123,12 @@ public class DatabaseService {
             );
             CREATE INDEX IF NOT EXISTS idx_bot_events_created_at ON bot_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_bot_events_chat_id ON bot_events(chat_id);
+
+            CREATE TABLE IF NOT EXISTS schedules (
+                schedule_date VARCHAR(10) PRIMARY KEY,
+                schedule_data TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
             """;
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
@@ -499,6 +505,91 @@ public class DatabaseService {
             e.printStackTrace();
         }
         return 0;
+    }
+
+    // ==================== Schedule Storage ====================
+
+    /**
+     * Saves a schedule to the database.
+     * Uses JSON format to store queue hours data.
+     *
+     * @param date schedule date in format "dd.MM.yyyy"
+     * @param scheduleJson JSON representation of schedule data
+     */
+    public void saveSchedule(String date, String scheduleJson) {
+        String sql = """
+            INSERT INTO schedules (schedule_date, schedule_data, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (schedule_date) DO UPDATE SET schedule_data = ?, updated_at = CURRENT_TIMESTAMP
+            """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, date);
+            stmt.setString(2, scheduleJson);
+            stmt.setString(3, scheduleJson);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Loads a schedule from the database.
+     *
+     * @param date schedule date in format "dd.MM.yyyy"
+     * @return JSON representation of schedule data, or null if not found
+     */
+    public String loadSchedule(String date) {
+        String sql = "SELECT schedule_data FROM schedules WHERE schedule_date = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, date);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("schedule_data");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * Loads all schedules from the database.
+     *
+     * @return Map of date -> JSON schedule data
+     */
+    public java.util.Map<String, String> loadAllSchedules() {
+        java.util.Map<String, String> schedules = new java.util.HashMap<>();
+        String sql = "SELECT schedule_date, schedule_data FROM schedules";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                schedules.put(rs.getString("schedule_date"), rs.getString("schedule_data"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return schedules;
+    }
+
+    /**
+     * Deletes old schedules (older than specified days).
+     *
+     * @param daysToKeep number of days to keep
+     */
+    public void cleanOldSchedules(int daysToKeep) {
+        String sql = "DELETE FROM schedules WHERE updated_at < NOW() - INTERVAL '" + daysToKeep + " days'";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            int deleted = stmt.executeUpdate(sql);
+            if (deleted > 0) {
+                System.out.println("Cleaned " + deleted + " old schedules");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
 
