@@ -405,6 +405,73 @@ public class ScheduleParser {
         return lastFetchFailed && !cachedSchedules.isEmpty();
     }
 
+    /**
+     * Returns true if the last fetch attempt failed (regardless of cache state).
+     */
+    public boolean isLastFetchFailed() {
+        return lastFetchFailed;
+    }
+
+    /**
+     * Checks website availability and returns diagnostic info.
+     * This method makes an actual HTTP request to test connectivity.
+     *
+     * @return WebsiteStatus with connection details
+     */
+    public WebsiteStatus checkWebsiteStatus() {
+        long startTime = System.currentTimeMillis();
+        try {
+            Document doc = Jsoup.connect(Config.SCHEDULE_URL)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(15000)
+                    .sslSocketFactory(getInsecureSSLSocketFactory())
+                    .ignoreHttpErrors(true)
+                    .followRedirects(true)
+                    .get();
+
+            long elapsed = System.currentTimeMillis() - startTime;
+
+            // Check if page has schedule table
+            Element table = doc.selectFirst("table");
+            boolean hasTable = table != null;
+            int rowCount = hasTable ? table.select("tr").size() : 0;
+
+            return new WebsiteStatus(true, elapsed, null, hasTable, rowCount);
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            return new WebsiteStatus(false, elapsed, e.getClass().getSimpleName() + ": " + e.getMessage(), false, 0);
+        }
+    }
+
+    /**
+     * Website status information.
+     */
+    public static class WebsiteStatus {
+        public final boolean reachable;
+        public final long responseTimeMs;
+        public final String error;
+        public final boolean hasScheduleTable;
+        public final int tableRowCount;
+
+        public WebsiteStatus(boolean reachable, long responseTimeMs, String error, boolean hasScheduleTable, int tableRowCount) {
+            this.reachable = reachable;
+            this.responseTimeMs = responseTimeMs;
+            this.error = error;
+            this.hasScheduleTable = hasScheduleTable;
+            this.tableRowCount = tableRowCount;
+        }
+
+        @Override
+        public String toString() {
+            if (reachable) {
+                return String.format("✅ Доступний (%dms), таблиця: %s, рядків: %d",
+                        responseTimeMs, hasScheduleTable ? "є" : "немає", tableRowCount);
+            } else {
+                return String.format("❌ Недоступний (%dms): %s", responseTimeMs, error);
+            }
+        }
+    }
+
     // ==================== Database Persistence ====================
 
     /**
