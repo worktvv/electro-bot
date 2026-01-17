@@ -1,5 +1,7 @@
 package ua.rivne.electro.bot;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -45,6 +47,8 @@ import java.util.Map;
  * @see KeyboardFactory
  */
 public class ElectroBot extends TelegramLongPollingBot {
+
+    private static final Logger log = LoggerFactory.getLogger(ElectroBot.class);
 
     private final Config config;
     private final ScheduleParser parser;
@@ -118,6 +122,7 @@ public class ElectroBot extends TelegramLongPollingBot {
 
             // Log command event
             databaseService.logEvent(chatId, "command", messageText);
+            log.info("Command from chatId={}: {}", chatId, messageText);
 
             // Handle slash commands
             if (messageText.startsWith("/")) {
@@ -222,7 +227,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(AnswerCallbackQuery.builder().callbackQueryId(callbackId).build());
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.warn("Failed to answer callback {}: {}", callbackId, e.getMessage());
         }
     }
 
@@ -479,7 +484,7 @@ public class ElectroBot extends TelegramLongPollingBot {
                 .build();
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send stats to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -967,7 +972,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send notification to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -981,7 +986,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send markdown message to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -992,7 +997,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send message to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -1005,7 +1010,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send message with keyboard to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -1021,7 +1026,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send message with menu to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -1037,7 +1042,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to send inline keyboard message to chatId={}: {}", chatId, e.getMessage());
         }
     }
 
@@ -1051,7 +1056,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         try {
             execute(edit);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error("Failed to edit message {} in chatId={}: {}", messageId, chatId, e.getMessage());
         }
     }
 
