@@ -497,10 +497,11 @@ public class ElectroBot extends TelegramLongPollingBot {
         }
 
         int proxyCount = parser.getProxyCount();
+        int timeoutSec = parser.getTimeoutSeconds();
         sendMessage(chatId, "🔍 Перевіряю доступність сайту...\n" +
             "• Пряме з'єднання\n" +
             "• " + proxyCount + " проксі\n\n" +
-            "⏳ Це може зайняти до " + (proxyCount + 1) * 15 + " секунд...");
+            "⏳ Це може зайняти до " + (proxyCount + 1) * timeoutSec + " секунд...");
 
         // Run check in background to not block
         new Thread(() -> {
