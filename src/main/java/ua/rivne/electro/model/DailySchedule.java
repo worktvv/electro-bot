@@ -115,19 +115,31 @@ public class DailySchedule {
 
     /**
      * Formats schedule for all queues with highlighting for user's queue.
-     * Hours for the user's queue will be displayed in italic.
+     * If user has selected a queue, shows it prominently at the top.
      *
      * @param userQueue user's selected queue (can be null)
      */
     public String formatAll(String userQueue) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("📅 *%s*\n\n", date));
 
         // If no data at all (day not found on website)
         if (!hasData()) {
+            sb.append(String.format("📅 *%s*\n\n", date));
             sb.append("⏳ _Графік очікується..._");
             return sb.toString();
         }
+
+        // Show user's queue prominently at the top if selected
+        if (userQueue != null && !userQueue.isEmpty()) {
+            List<String> userHours = queueHours.get(userQueue);
+            if (userHours != null && !userHours.isEmpty()) {
+                sb.append(String.format("🔌 *Черга %s:*\n", userQueue));
+                sb.append(String.format("⏰ *%s*\n", String.join(", ", userHours)));
+                sb.append("\n———————————————————\n\n");
+            }
+        }
+
+        sb.append(String.format("📅 *%s*\n\n", date));
 
         // Output all queues in correct order
         for (String queue : ALL_QUEUES) {
