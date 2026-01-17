@@ -286,18 +286,29 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Sends help message.
+     * Shows admin commands if the user is an admin.
      */
     private void sendHelpMessage(long chatId) {
-        String text =
-            "📋 *Доступні команди:*\n\n" +
-            "/start - Почати роботу з ботом\n" +
-            "/menu - Показати головне меню\n" +
-            "/today - Графік на сьогодні\n" +
-            "/tomorrow - Графік на завтра\n" +
-            "/all - Показати всі графіки\n" +
-            "/help - Показати цю довідку\n\n" +
-            "_Або використовуйте кнопки меню нижче_";
-        sendMarkdownMessage(chatId, text);
+        StringBuilder text = new StringBuilder();
+        text.append("📋 *Доступні команди:*\n\n");
+        text.append("/start - Почати роботу з ботом\n");
+        text.append("/menu - Показати головне меню\n");
+        text.append("/today - Графік на сьогодні\n");
+        text.append("/tomorrow - Графік на завтра\n");
+        text.append("/all - Показати всі графіки\n");
+        text.append("/help - Показати цю довідку\n");
+
+        // Add admin commands if user is admin
+        if (config.isAdmin(chatId)) {
+            text.append("\n🔐 *Команди адміністратора:*\n\n");
+            text.append("/stats - Статистика бота\n");
+            text.append("/refresh - Парсинг даних з сайту\n");
+            text.append("/check - Перевірка з'єднань\n");
+            text.append("/debug - Діагностика сповіщень\n");
+        }
+
+        text.append("\n_Або використовуйте кнопки меню нижче_");
+        sendMarkdownMessage(chatId, text.toString());
     }
 
     /**
