@@ -3,7 +3,9 @@ package ua.rivne.electro.config;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.Authenticator;
 import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +44,28 @@ public class ProxyConfig {
 
         public Proxy toProxy() {
             return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
+        }
+
+        /**
+         * Sets up global authenticator for this proxy.
+         * Must be called before making HTTP request through this proxy.
+         */
+        public void setupAuthenticator() {
+            if (hasAuth()) {
+                Authenticator.setDefault(new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(username, password.toCharArray());
+                    }
+                });
+            }
+        }
+
+        /**
+         * Clears the global authenticator.
+         */
+        public static void clearAuthenticator() {
+            Authenticator.setDefault(null);
         }
 
         @Override
