@@ -293,7 +293,7 @@ public class ScheduleParser {
         // 3. Process result
         if (schedules != null && !schedules.isEmpty()) {
             cachedSchedules = schedules;
-            lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
+            lastCacheUpdate = LocalDateTime.now(ZoneId.of("UTC"));
             lastFetchFailed = false;
             saveToDatabase(schedules);
             log.info("Cache updated at {}, {} days loaded", lastCacheUpdate, schedules.size());
