@@ -76,42 +76,58 @@ public class ScheduleParser {
     /** Date format used in the source website */
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    /** Browser profiles for rotation to avoid blocking */
+    /** Browser profiles for rotation to avoid blocking (updated Jan 2025) */
     private static final BrowserProfile[] BROWSER_PROFILES = {
-        // Chrome on Windows 10
+        // Chrome 131 on Windows 11
         new BrowserProfile(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-            "https://www.google.com.ua/"
+            "https://www.google.com.ua/",
+            "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "?0", "\"Windows\""
         ),
-        // Firefox on Windows 10
+        // Firefox 134 on Windows 11
         new BrowserProfile(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8",
             "uk-UA,uk;q=0.8,en-US;q=0.5,en;q=0.3",
-            "https://www.google.com.ua/"
+            "https://www.google.com.ua/",
+            null, null, null  // Firefox doesn't send Client Hints
         ),
-        // Edge on Windows 11
+        // Edge 131 on Windows 11
         new BrowserProfile(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "uk,en-US;q=0.9,en;q=0.8",
-            "https://www.bing.com/"
+            "https://www.bing.com/",
+            "\"Microsoft Edge\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "?0", "\"Windows\""
         ),
-        // Chrome on Android
+        // Chrome on Android 14
         new BrowserProfile(
-            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.135 Mobile Safari/537.36",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "uk-UA,uk;q=0.9,en;q=0.8",
-            "https://www.google.com/"
+            "https://www.google.com/",
+            "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "?1", "\"Android\""
         ),
-        // Safari on macOS
+        // Safari 17.2 on macOS Sonoma
         new BrowserProfile(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "uk-UA,uk;q=0.9",
-            "https://www.google.com.ua/"
+            "https://www.google.com.ua/",
+            null, null, null  // Safari doesn't send Client Hints
+        ),
+        // Chrome on iPhone
+        new BrowserProfile(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.134 Mobile/15E148 Safari/604.1",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "uk-UA,uk;q=0.9,en;q=0.8",
+            "https://www.google.com/",
+            null, null, null  // iOS Chrome uses Safari engine
         )
     };
 
@@ -127,19 +143,31 @@ public class ScheduleParser {
     private Consumer<String> adminNotifier;
 
     /**
-     * Browser profile for HTTP requests.
+     * Browser profile for HTTP requests with Client Hints support.
      */
     private static class BrowserProfile {
         final String userAgent;
         final String accept;
         final String acceptLanguage;
         final String referer;
+        // Client Hints (Sec-CH-UA headers) - null for browsers that don't support them
+        final String secChUa;
+        final String secChUaMobile;
+        final String secChUaPlatform;
 
-        BrowserProfile(String userAgent, String accept, String acceptLanguage, String referer) {
+        BrowserProfile(String userAgent, String accept, String acceptLanguage, String referer,
+                       String secChUa, String secChUaMobile, String secChUaPlatform) {
             this.userAgent = userAgent;
             this.accept = accept;
             this.acceptLanguage = acceptLanguage;
             this.referer = referer;
+            this.secChUa = secChUa;
+            this.secChUaMobile = secChUaMobile;
+            this.secChUaPlatform = secChUaPlatform;
+        }
+
+        boolean hasClientHints() {
+            return secChUa != null;
         }
     }
 
@@ -336,6 +364,7 @@ public class ScheduleParser {
 
     /**
      * Fetches schedules using specified connection (direct or via proxy).
+     * Simulates real browser behavior with random delays and realistic headers.
      *
      * @param proxyEntry Proxy to use, or null for direct connection
      * @param timeoutMs Connection timeout in milliseconds
@@ -348,6 +377,16 @@ public class ScheduleParser {
 
         // Get random browser profile (different from last one)
         BrowserProfile profile = getNextBrowserProfile();
+
+        // Random delay 1-3 seconds to simulate human behavior
+        try {
+            int delayMs = 1000 + random.nextInt(2000);
+            log.debug("Waiting {}ms before request (human simulation)", delayMs);
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
         long startTime = System.currentTimeMillis();
 
         // Setup proxy authentication if needed
@@ -364,6 +403,7 @@ public class ScheduleParser {
                     .header("Accept", profile.accept)
                     .header("Accept-Language", profile.acceptLanguage)
                     .header("Accept-Encoding", "gzip, deflate, br")
+                    .header("DNT", "1")  // Do Not Track
                     .header("Connection", "keep-alive")
                     .header("Upgrade-Insecure-Requests", "1")
                     .header("Sec-Fetch-Dest", "document")
@@ -371,11 +411,19 @@ public class ScheduleParser {
                     .header("Sec-Fetch-Site", "cross-site")
                     .header("Sec-Fetch-User", "?1")
                     .header("Cache-Control", "max-age=0")
+                    .header("Priority", "u=0, i")  // Modern browsers send this
                     .referrer(profile.referer)
                     .timeout(timeoutMs)
                     .sslSocketFactory(getInsecureSSLSocketFactory())
                     .ignoreHttpErrors(true)
                     .followRedirects(true);
+
+            // Add Client Hints for Chrome/Edge browsers
+            if (profile.hasClientHints()) {
+                connection.header("Sec-CH-UA", profile.secChUa);
+                connection.header("Sec-CH-UA-Mobile", profile.secChUaMobile);
+                connection.header("Sec-CH-UA-Platform", profile.secChUaPlatform);
+            }
 
             // Add proxy if specified
             if (proxyEntry != null) {
@@ -643,6 +691,7 @@ public class ScheduleParser {
 
     /**
      * Checks connection status with optional proxy.
+     * Uses same realistic headers as fetchSchedulesWithConnection.
      *
      * @param profile Browser profile to use
      * @param proxyEntry Proxy entry (null for direct connection)
@@ -664,13 +713,27 @@ public class ScheduleParser {
                     .header("Accept", profile.accept)
                     .header("Accept-Language", profile.acceptLanguage)
                     .header("Accept-Encoding", "gzip, deflate, br")
+                    .header("DNT", "1")
                     .header("Connection", "keep-alive")
                     .header("Upgrade-Insecure-Requests", "1")
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "cross-site")
+                    .header("Sec-Fetch-User", "?1")
+                    .header("Cache-Control", "max-age=0")
+                    .header("Priority", "u=0, i")
                     .referrer(profile.referer)
                     .timeout(proxyConfig.getTimeoutMillis())
                     .sslSocketFactory(getInsecureSSLSocketFactory())
                     .ignoreHttpErrors(true)
                     .followRedirects(true);
+
+            // Add Client Hints for Chrome/Edge browsers
+            if (profile.hasClientHints()) {
+                connection.header("Sec-CH-UA", profile.secChUa);
+                connection.header("Sec-CH-UA-Mobile", profile.secChUaMobile);
+                connection.header("Sec-CH-UA-Platform", profile.secChUaPlatform);
+            }
 
             if (proxyEntry != null) {
                 Proxy proxy = useSocks ? proxyEntry.toSocksProxy() : proxyEntry.toHttpProxy();
