@@ -72,6 +72,11 @@ public class ElectroBot extends TelegramLongPollingBot {
         this.userSettings = new UserSettingsService(databaseService);
         this.notificationService = new NotificationService(parser, userSettings);
 
+        // Set admin notifier for connection failures
+        if (config.getAdminChatId() != null) {
+            parser.setAdminNotifier(message -> sendMarkdownMessage(config.getAdminChatId(), message));
+        }
+
         // Start cache updater (loads from DB, then fetches from website every 30 min)
         parser.startCacheUpdater();
 
