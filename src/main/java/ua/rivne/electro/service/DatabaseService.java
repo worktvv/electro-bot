@@ -577,6 +577,27 @@ public class DatabaseService {
     }
 
     /**
+     * Clears all schedules from the database.
+     * Called before saving new schedules to avoid accumulating old data.
+     *
+     * @return number of deleted records
+     */
+    public int clearAllSchedules() {
+        String sql = "DELETE FROM schedules";
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            int deleted = stmt.executeUpdate(sql);
+            if (deleted > 0) {
+                System.out.println("🗑️ Cleared " + deleted + " old schedules from database");
+            }
+            return deleted;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    /**
      * Deletes old schedules (older than specified days).
      *
      * @param daysToKeep number of days to keep
