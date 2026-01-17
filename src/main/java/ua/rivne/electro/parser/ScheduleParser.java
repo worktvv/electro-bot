@@ -5,6 +5,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ua.rivne.electro.config.Config;
 import ua.rivne.electro.config.ProxyConfig;
 import ua.rivne.electro.model.DailySchedule;
@@ -56,6 +58,8 @@ import java.util.function.Consumer;
  * @see DailySchedule
  */
 public class ScheduleParser {
+
+    private static final Logger log = LoggerFactory.getLogger(ScheduleParser.class);
 
     /** Queue identifiers in the order they appear in the source table */
     private static final String[] QUEUE_NAMES = {
@@ -206,7 +210,7 @@ public class ScheduleParser {
             CACHE_UPDATE_INTERVAL_MINUTES,
             TimeUnit.MINUTES
         );
-        System.out.println("📊 Schedule cache updater started (every " + CACHE_UPDATE_INTERVAL_MINUTES + " min)");
+        log.info("Schedule cache updater started (every {} min)", CACHE_UPDATE_INTERVAL_MINUTES);
     }
 
     /**
@@ -221,18 +225,18 @@ public class ScheduleParser {
      * Tries direct connection first, then proxies if configured.
      */
     private void refreshCache() {
-        System.out.println("🔄 Attempting to refresh cache from website at " + LocalDateTime.now(KYIV_ZONE));
+        log.info("Attempting to refresh cache from website at {}", LocalDateTime.now(KYIV_ZONE));
 
         StringBuilder errorLog = new StringBuilder();
         List<DailySchedule> schedules = null;
 
         // 1. Try direct connection first
         try {
-            System.out.println("📡 Trying direct connection...");
+            log.debug("Trying direct connection...");
             schedules = fetchSchedulesWithConnection(null, 30000, true);
         } catch (Exception e) {
             String error = "Direct: " + e.getClass().getSimpleName() + " - " + e.getMessage();
-            System.err.println("❌ " + error);
+            log.warn("Direct connection failed: {}", error);
             errorLog.append("• ").append(error).append("\n");
         }
 
@@ -244,14 +248,14 @@ public class ScheduleParser {
                 for (boolean useSocks : new boolean[]{true, false}) {
                     try {
                         String proxyType = useSocks ? "SOCKS" : "HTTP";
-                        System.out.println("📡 Trying " + proxyType + " proxy: " + proxyEntry);
+                        log.debug("Trying {} proxy: {}", proxyType, proxyEntry);
                         schedules = fetchSchedulesWithConnection(proxyEntry, proxyConfig.getTimeoutMillis(), useSocks);
-                        System.out.println("✅ Success via " + proxyType + " proxy: " + proxyEntry);
+                        log.info("Success via {} proxy: {}", proxyType, proxyEntry);
                         break proxyLoop; // Success!
                     } catch (Exception e) {
                         String proxyType = useSocks ? "SOCKS" : "HTTP";
                         String error = proxyType + " " + proxyEntry + ": " + e.getClass().getSimpleName() + " - " + e.getMessage();
-                        System.err.println("❌ " + error);
+                        log.warn("Proxy failed: {}", error);
                         errorLog.append("• ").append(error).append("\n");
                     }
                 }
@@ -264,10 +268,10 @@ public class ScheduleParser {
             lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
             lastFetchFailed = false;
             saveToDatabase(schedules);
-            System.out.println("✅ Cache updated at " + lastCacheUpdate + ", " + schedules.size() + " days loaded");
+            log.info("Cache updated at {}, {} days loaded", lastCacheUpdate, schedules.size());
         } else {
             lastFetchFailed = true;
-            System.err.println("❌ All connection attempts failed, keeping existing cache");
+            log.error("All connection attempts failed, keeping existing cache");
 
             // Notify admin if configured
             if (proxyConfig.isNotifyAdminOnFailure() && adminNotifier != null) {
@@ -278,7 +282,7 @@ public class ScheduleParser {
                 try {
                     adminNotifier.accept(message);
                 } catch (Exception e) {
-                    System.err.println("Failed to notify admin: " + e.getMessage());
+                    log.error("Failed to notify admin: {}", e.getMessage());
                 }
             }
         }
@@ -386,7 +390,7 @@ public class ScheduleParser {
             Document doc = connection.get();
 
             long elapsed = System.currentTimeMillis() - startTime;
-            System.out.println("🌐 Page loaded in " + elapsed + "ms" + (proxyEntry != null ? " via proxy" : " direct"));
+            log.debug("Page loaded in {}ms {}", elapsed, proxyEntry != null ? "via proxy" : "direct");
 
             // Find schedule table
             Element table = doc.selectFirst("table");
@@ -743,7 +747,7 @@ public class ScheduleParser {
             String json = scheduleToJson(schedule);
             db.saveSchedule(schedule.getDate(), json);
         }
-        System.out.println("💾 Saved " + schedules.size() + " schedules to database");
+        log.info("Saved {} schedules to database", schedules.size());
     }
 
     /**
@@ -754,7 +758,7 @@ public class ScheduleParser {
 
         Map<String, String> storedSchedules = db.loadAllSchedules();
         if (storedSchedules.isEmpty()) {
-            System.out.println("📂 No schedules in database");
+            log.info("No schedules in database");
             return;
         }
 
@@ -773,7 +777,7 @@ public class ScheduleParser {
             if (dbUpdateTime != null) {
                 lastCacheUpdate = dbUpdateTime;
             }
-            System.out.println("📂 Loaded " + schedules.size() + " schedules from database (updated: " + lastCacheUpdate + ")");
+            log.info("Loaded {} schedules from database (updated: {})", schedules.size(), lastCacheUpdate);
         }
     }
 
@@ -845,7 +849,7 @@ public class ScheduleParser {
 
             return schedule;
         } catch (Exception e) {
-            System.err.println("Failed to parse schedule JSON: " + e.getMessage());
+            log.error("Failed to parse schedule JSON: {}", e.getMessage());
             return null;
         }
     }
