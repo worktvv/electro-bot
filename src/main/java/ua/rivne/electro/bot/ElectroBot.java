@@ -700,7 +700,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         if (lastUpdate != null) {
             String updateText = "\n\n_Дані оновлено " + lastUpdate.format(UPDATE_TIME_FORMAT) + "_";
             if (parser.isSourceUnavailable()) {
-                updateText += "\n\n⚠️ _Дані можуть бути застарілі. Сайт Рівнеобленерго недоступний._";
+                updateText += "\n\n⚠️ _Дані можуть бути застарілі. Оновлення даних відбувалося кілька годин тому_";
             }
             return updateText;
         }
