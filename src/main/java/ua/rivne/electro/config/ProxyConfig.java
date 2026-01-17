@@ -96,11 +96,29 @@ public class ProxyConfig {
     }
 
     /**
-     * Loads proxy configuration from proxy.conf resource file.
+     * Loads proxy configuration from environment variable or proxy.conf file.
+     * Priority: PROXY_LIST env var > proxy.conf file
+     *
+     * PROXY_LIST format: host:port:user:pass,host2:port2:user2:pass2
      */
     public static ProxyConfig load() {
         ProxyConfig config = new ProxyConfig();
 
+        // 1. Try environment variable first (for Railway/Docker)
+        String proxyListEnv = System.getenv("PROXY_LIST");
+        if (proxyListEnv != null && !proxyListEnv.trim().isEmpty()) {
+            System.out.println("📡 Loading proxies from PROXY_LIST environment variable");
+            for (String proxyStr : proxyListEnv.split(",")) {
+                ProxyEntry entry = parseProxyLine(proxyStr.trim());
+                if (entry != null) {
+                    config.proxies.add(entry);
+                }
+            }
+            System.out.println("📡 Loaded " + config.proxies.size() + " proxies from env, timeout: " + config.timeoutSeconds + "s");
+            return config;
+        }
+
+        // 2. Fall back to proxy.conf file
         try (InputStream is = ProxyConfig.class.getResourceAsStream("/proxy.conf")) {
             if (is == null) {
                 System.out.println("📡 No proxy.conf found, using direct connection only");
@@ -149,7 +167,7 @@ public class ProxyConfig {
             System.err.println("⚠️ Failed to load proxy.conf: " + e.getMessage());
         }
 
-        System.out.println("📡 Loaded " + config.proxies.size() + " proxies, timeout: " + config.timeoutSeconds + "s");
+        System.out.println("📡 Loaded " + config.proxies.size() + " proxies from file, timeout: " + config.timeoutSeconds + "s");
         return config;
     }
 
