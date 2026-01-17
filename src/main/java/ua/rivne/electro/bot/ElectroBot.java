@@ -488,6 +488,7 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Checks website availability (admin only).
+     * Tests direct connection and all configured proxies.
      */
     private void checkWebsite(long chatId) {
         if (!config.isAdmin(chatId)) {
@@ -495,16 +496,45 @@ public class ElectroBot extends TelegramLongPollingBot {
             return;
         }
 
-        sendMessage(chatId, "🔍 Перевіряю доступність сайту...");
+        int proxyCount = parser.getProxyCount();
+        sendMessage(chatId, "🔍 Перевіряю доступність сайту...\n" +
+            "• Пряме з'єднання\n" +
+            "• " + proxyCount + " проксі\n\n" +
+            "⏳ Це може зайняти до " + (proxyCount + 1) * 15 + " секунд...");
 
         // Run check in background to not block
         new Thread(() -> {
-            var status = parser.checkWebsiteStatus();
+            var allStatuses = parser.checkAllConnections();
 
             StringBuilder sb = new StringBuilder();
-            sb.append("🌐 *Перевірка сайту*\n\n");
+            sb.append("🌐 *Перевірка з'єднань*\n\n");
             sb.append(String.format("URL: `%s`\n\n", Config.SCHEDULE_URL));
-            sb.append(String.format("*Статус:* %s\n\n", status.toString()));
+
+            // Count results
+            int successCount = 0;
+            int failCount = 0;
+
+            sb.append("*Результати:*\n");
+            for (var status : allStatuses) {
+                if (status.reachable) {
+                    successCount++;
+                    sb.append(String.format("✅ %s (%dms)", status.error, status.responseTimeMs));
+                    if (status.hasScheduleTable) {
+                        sb.append(String.format(" - таблиця: %d рядків", status.tableRowCount));
+                    }
+                    sb.append("\n");
+                } else {
+                    failCount++;
+                    // Shorten error message for display
+                    String shortError = status.error;
+                    if (shortError.length() > 60) {
+                        shortError = shortError.substring(0, 57) + "...";
+                    }
+                    sb.append(String.format("❌ %s (%dms)\n", shortError, status.responseTimeMs));
+                }
+            }
+
+            sb.append(String.format("\n*Підсумок:* ✅ %d / ❌ %d\n\n", successCount, failCount));
 
             sb.append("*Стан кешу:*\n");
             sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "✅ так" : "❌ ні"));
@@ -514,6 +544,10 @@ public class ElectroBot extends TelegramLongPollingBot {
 
             if (!parser.hasCachedData()) {
                 sb.append("\n⚠️ *Кеш порожній!* Використайте /refresh для примусового оновлення.");
+            }
+
+            if (successCount == 0) {
+                sb.append("\n⚠️ *Жодне з'єднання не працює!* Перевірте проксі в proxy.conf");
             }
 
             sendMarkdownMessage(chatId, sb.toString());
