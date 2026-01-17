@@ -557,31 +557,50 @@ public class ScheduleParser {
      * This method makes an actual HTTP request to test connectivity.
      * Tests direct connection and all configured proxies.
      *
-     * @return WebsiteStatus with connection details
+     * @return WebsiteStatus with connection details (first successful or last failed)
      */
     public WebsiteStatus checkWebsiteStatus() {
+        List<WebsiteStatus> allStatuses = checkAllConnections();
+
+        // Return first successful or last failed
+        for (WebsiteStatus status : allStatuses) {
+            if (status.reachable) {
+                return status;
+            }
+        }
+        return allStatuses.isEmpty() ?
+            new WebsiteStatus(false, 0, "No connections configured", false, 0, null) :
+            allStatuses.get(allStatuses.size() - 1);
+    }
+
+    /**
+     * Checks ALL connections (direct + all proxies) and returns list of statuses.
+     * Used by /check command to show detailed diagnostics.
+     *
+     * @return List of WebsiteStatus for each connection attempt
+     */
+    public List<WebsiteStatus> checkAllConnections() {
+        List<WebsiteStatus> results = new ArrayList<>();
         BrowserProfile profile = getNextBrowserProfile();
 
-        // Try direct connection first
-        WebsiteStatus directStatus = checkConnectionStatus(profile, null, "Direct");
-        if (directStatus.reachable) {
-            return directStatus;
-        }
+        // 1. Check direct connection
+        results.add(checkConnectionStatus(profile, null, "Direct"));
 
-        // Try proxies if direct failed
+        // 2. Check all proxies
         if (proxyConfig.hasProxies()) {
             for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
-                WebsiteStatus proxyStatus = checkConnectionStatus(profile, proxyEntry.toProxy(), "Proxy " + proxyEntry);
-                if (proxyStatus.reachable) {
-                    return proxyStatus;
-                }
+                results.add(checkConnectionStatus(profile, proxyEntry.toProxy(), proxyEntry.toString()));
             }
         }
 
-        // All failed, return direct status with proxy info
-        return new WebsiteStatus(false, directStatus.responseTimeMs,
-            directStatus.error + " (+ " + proxyConfig.getProxies().size() + " proxies failed)",
-            false, 0, profile.userAgent);
+        return results;
+    }
+
+    /**
+     * Returns the number of configured proxies.
+     */
+    public int getProxyCount() {
+        return proxyConfig.getProxies().size();
     }
 
     /**
