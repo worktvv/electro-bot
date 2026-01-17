@@ -1,15 +1,18 @@
 package ua.rivne.electro.parser;
 
+import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import ua.rivne.electro.config.Config;
+import ua.rivne.electro.config.ProxyConfig;
 import ua.rivne.electro.model.DailySchedule;
 import ua.rivne.electro.service.DatabaseService;
 
 import javax.net.ssl.*;
 import java.io.IOException;
+import java.net.Proxy;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -25,6 +28,7 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Parser for fetching power outage schedules from the ROE (Rivneoblenergo) website.
@@ -115,6 +119,8 @@ public class ScheduleParser {
     private volatile boolean lastFetchFailed = false;
     private final ScheduledExecutorService cacheUpdater;
     private final DatabaseService db;
+    private final ProxyConfig proxyConfig;
+    private Consumer<String> adminNotifier;
 
     /**
      * Browser profile for HTTP requests.
@@ -166,6 +172,17 @@ public class ScheduleParser {
     public ScheduleParser(DatabaseService db) {
         this.cacheUpdater = Executors.newSingleThreadScheduledExecutor();
         this.db = db;
+        this.proxyConfig = ProxyConfig.load();
+    }
+
+    /**
+     * Sets the admin notifier callback.
+     * Called when all connection attempts (direct + proxies) fail.
+     *
+     * @param notifier Consumer that receives error message to send to admin
+     */
+    public void setAdminNotifier(Consumer<String> notifier) {
+        this.adminNotifier = notifier;
     }
 
     /**
@@ -201,35 +218,63 @@ public class ScheduleParser {
 
     /**
      * Refreshes the cache by fetching data from the website.
+     * Tries direct connection first, then proxies if configured.
      */
     private void refreshCache() {
         System.out.println("🔄 Attempting to refresh cache from website at " + LocalDateTime.now(KYIV_ZONE));
+
+        StringBuilder errorLog = new StringBuilder();
+        List<DailySchedule> schedules = null;
+
+        // 1. Try direct connection first
         try {
-            List<DailySchedule> schedules = fetchSchedulesFromWebsite();
+            System.out.println("📡 Trying direct connection...");
+            schedules = fetchSchedulesWithConnection(null, 30000);
+        } catch (Exception e) {
+            String error = "Direct: " + e.getClass().getSimpleName() + " - " + e.getMessage();
+            System.err.println("❌ " + error);
+            errorLog.append("• ").append(error).append("\n");
+        }
 
-            // Only update cache if we got valid data
-            if (schedules.isEmpty()) {
-                System.out.println("⚠️ Website returned empty schedule, keeping existing cache");
-                lastFetchFailed = true;
-                return;
+        // 2. If direct failed and we have proxies, try them
+        if (schedules == null && proxyConfig.hasProxies()) {
+            for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
+                try {
+                    System.out.println("📡 Trying proxy: " + proxyEntry);
+                    schedules = fetchSchedulesWithConnection(proxyEntry.toProxy(), proxyConfig.getTimeoutMillis());
+                    System.out.println("✅ Success via proxy: " + proxyEntry);
+                    break; // Success!
+                } catch (Exception e) {
+                    String error = "Proxy " + proxyEntry + ": " + e.getClass().getSimpleName() + " - " + e.getMessage();
+                    System.err.println("❌ " + error);
+                    errorLog.append("• ").append(error).append("\n");
+                }
             }
+        }
 
+        // 3. Process result
+        if (schedules != null && !schedules.isEmpty()) {
             cachedSchedules = schedules;
             lastCacheUpdate = LocalDateTime.now(KYIV_ZONE);
             lastFetchFailed = false;
-
-            // Save to database
             saveToDatabase(schedules);
-
             System.out.println("✅ Cache updated at " + lastCacheUpdate + ", " + schedules.size() + " days loaded");
-        } catch (IOException e) {
-            System.err.println("❌ Failed to update cache (IOException): " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        } else {
             lastFetchFailed = true;
-            // Keep old cache (from memory or database) if update fails
-        } catch (Exception e) {
-            System.err.println("❌ Unexpected error during cache refresh: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            lastFetchFailed = true;
+            System.err.println("❌ All connection attempts failed, keeping existing cache");
+
+            // Notify admin if configured
+            if (proxyConfig.isNotifyAdminOnFailure() && adminNotifier != null) {
+                String message = "⚠️ *Не вдалося оновити графіки*\n\n" +
+                    "Час: " + LocalDateTime.now(KYIV_ZONE).format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")) + "\n\n" +
+                    "*Помилки:*\n" + errorLog.toString() + "\n" +
+                    "_Дані з БД використовуються як резерв_";
+                try {
+                    adminNotifier.accept(message);
+                } catch (Exception e) {
+                    System.err.println("Failed to notify admin: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -280,23 +325,22 @@ public class ScheduleParser {
     }
 
     /**
-     * Fetches current power outage schedules directly from the website.
-     * Used internally for cache updates.
+     * Fetches schedules using specified connection (direct or via proxy).
      *
+     * @param proxy Proxy to use, or null for direct connection
+     * @param timeoutMs Connection timeout in milliseconds
      * @return List of daily schedules
-     * @throws IOException if failed to fetch data from website
+     * @throws IOException if failed to fetch data
      */
-    private List<DailySchedule> fetchSchedulesFromWebsite() throws IOException {
+    private List<DailySchedule> fetchSchedulesWithConnection(Proxy proxy, int timeoutMs) throws IOException {
         List<DailySchedule> schedules = new ArrayList<>();
 
         // Get random browser profile (different from last one)
         BrowserProfile profile = getNextBrowserProfile();
-        System.out.println("🌐 Connecting to: " + Config.SCHEDULE_URL);
-        System.out.println("🌐 Using browser: " + profile.userAgent.substring(0, Math.min(50, profile.userAgent.length())) + "...");
         long startTime = System.currentTimeMillis();
 
-        // Load page with realistic browser headers
-        Document doc = Jsoup.connect(Config.SCHEDULE_URL)
+        // Build connection with realistic browser headers
+        Connection connection = Jsoup.connect(Config.SCHEDULE_URL)
                 .userAgent(profile.userAgent)
                 .header("Accept", profile.accept)
                 .header("Accept-Language", profile.acceptLanguage)
@@ -309,14 +353,20 @@ public class ScheduleParser {
                 .header("Sec-Fetch-User", "?1")
                 .header("Cache-Control", "max-age=0")
                 .referrer(profile.referer)
-                .timeout(30000)  // 30 seconds timeout
+                .timeout(timeoutMs)
                 .sslSocketFactory(getInsecureSSLSocketFactory())
                 .ignoreHttpErrors(true)
-                .followRedirects(true)
-                .get();
+                .followRedirects(true);
+
+        // Add proxy if specified
+        if (proxy != null) {
+            connection.proxy(proxy);
+        }
+
+        Document doc = connection.get();
 
         long elapsed = System.currentTimeMillis() - startTime;
-        System.out.println("🌐 Page loaded in " + elapsed + "ms");
+        System.out.println("🌐 Page loaded in " + elapsed + "ms" + (proxy != null ? " via proxy" : " direct"));
 
         // Find schedule table
         Element table = doc.selectFirst("table");
@@ -505,14 +555,42 @@ public class ScheduleParser {
     /**
      * Checks website availability and returns diagnostic info.
      * This method makes an actual HTTP request to test connectivity.
+     * Tests direct connection and all configured proxies.
      *
      * @return WebsiteStatus with connection details
      */
     public WebsiteStatus checkWebsiteStatus() {
         BrowserProfile profile = getNextBrowserProfile();
+
+        // Try direct connection first
+        WebsiteStatus directStatus = checkConnectionStatus(profile, null, "Direct");
+        if (directStatus.reachable) {
+            return directStatus;
+        }
+
+        // Try proxies if direct failed
+        if (proxyConfig.hasProxies()) {
+            for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
+                WebsiteStatus proxyStatus = checkConnectionStatus(profile, proxyEntry.toProxy(), "Proxy " + proxyEntry);
+                if (proxyStatus.reachable) {
+                    return proxyStatus;
+                }
+            }
+        }
+
+        // All failed, return direct status with proxy info
+        return new WebsiteStatus(false, directStatus.responseTimeMs,
+            directStatus.error + " (+ " + proxyConfig.getProxies().size() + " proxies failed)",
+            false, 0, profile.userAgent);
+    }
+
+    /**
+     * Checks connection status with optional proxy.
+     */
+    private WebsiteStatus checkConnectionStatus(BrowserProfile profile, Proxy proxy, String connectionType) {
         long startTime = System.currentTimeMillis();
         try {
-            Document doc = Jsoup.connect(Config.SCHEDULE_URL)
+            Connection connection = Jsoup.connect(Config.SCHEDULE_URL)
                     .userAgent(profile.userAgent)
                     .header("Accept", profile.accept)
                     .header("Accept-Language", profile.acceptLanguage)
@@ -520,12 +598,16 @@ public class ScheduleParser {
                     .header("Connection", "keep-alive")
                     .header("Upgrade-Insecure-Requests", "1")
                     .referrer(profile.referer)
-                    .timeout(15000)
+                    .timeout(proxyConfig.getTimeoutMillis())
                     .sslSocketFactory(getInsecureSSLSocketFactory())
                     .ignoreHttpErrors(true)
-                    .followRedirects(true)
-                    .get();
+                    .followRedirects(true);
 
+            if (proxy != null) {
+                connection.proxy(proxy);
+            }
+
+            Document doc = connection.get();
             long elapsed = System.currentTimeMillis() - startTime;
 
             // Check if page has schedule table
@@ -533,10 +615,10 @@ public class ScheduleParser {
             boolean hasTable = table != null;
             int rowCount = hasTable ? table.select("tr").size() : 0;
 
-            return new WebsiteStatus(true, elapsed, null, hasTable, rowCount, profile.userAgent);
+            return new WebsiteStatus(true, elapsed, connectionType + " OK", hasTable, rowCount, profile.userAgent);
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
-            return new WebsiteStatus(false, elapsed, e.getClass().getSimpleName() + ": " + e.getMessage(), false, 0, profile.userAgent);
+            return new WebsiteStatus(false, elapsed, connectionType + ": " + e.getClass().getSimpleName() + " - " + e.getMessage(), false, 0, profile.userAgent);
         }
     }
 
