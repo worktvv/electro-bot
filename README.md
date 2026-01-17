@@ -18,7 +18,10 @@ A Telegram bot that provides power outage schedules for a city and region in Ukr
 - **Jsoup** - HTML parsing for schedule data
 - **PostgreSQL** - Database for user settings and analytics
 - **HikariCP** - Connection pooling
+- **Logback** - Logging with rotation
+- **Dotenv** - Environment configuration
 - **JUnit 5 + Mockito** - Testing
+- **JaCoCo** - Test coverage reports
 
 ## 📁 Project Structure
 
