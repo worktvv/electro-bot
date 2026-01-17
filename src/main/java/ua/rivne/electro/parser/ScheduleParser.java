@@ -229,25 +229,31 @@ public class ScheduleParser {
         // 1. Try direct connection first
         try {
             System.out.println("📡 Trying direct connection...");
-            schedules = fetchSchedulesWithConnection(null, 30000);
+            schedules = fetchSchedulesWithConnection(null, 30000, true);
         } catch (Exception e) {
             String error = "Direct: " + e.getClass().getSimpleName() + " - " + e.getMessage();
             System.err.println("❌ " + error);
             errorLog.append("• ").append(error).append("\n");
         }
 
-        // 2. If direct failed and we have proxies, try them
+        // 2. If direct failed and we have proxies, try them (SOCKS first, then HTTP)
         if (schedules == null && proxyConfig.hasProxies()) {
+            proxyLoop:
             for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
-                try {
-                    System.out.println("📡 Trying proxy: " + proxyEntry);
-                    schedules = fetchSchedulesWithConnection(proxyEntry, proxyConfig.getTimeoutMillis());
-                    System.out.println("✅ Success via proxy: " + proxyEntry);
-                    break; // Success!
-                } catch (Exception e) {
-                    String error = "Proxy " + proxyEntry + ": " + e.getClass().getSimpleName() + " - " + e.getMessage();
-                    System.err.println("❌ " + error);
-                    errorLog.append("• ").append(error).append("\n");
+                // Try SOCKS first, then HTTP
+                for (boolean useSocks : new boolean[]{true, false}) {
+                    try {
+                        String proxyType = useSocks ? "SOCKS" : "HTTP";
+                        System.out.println("📡 Trying " + proxyType + " proxy: " + proxyEntry);
+                        schedules = fetchSchedulesWithConnection(proxyEntry, proxyConfig.getTimeoutMillis(), useSocks);
+                        System.out.println("✅ Success via " + proxyType + " proxy: " + proxyEntry);
+                        break proxyLoop; // Success!
+                    } catch (Exception e) {
+                        String proxyType = useSocks ? "SOCKS" : "HTTP";
+                        String error = proxyType + " " + proxyEntry + ": " + e.getClass().getSimpleName() + " - " + e.getMessage();
+                        System.err.println("❌ " + error);
+                        errorLog.append("• ").append(error).append("\n");
+                    }
                 }
             }
         }
@@ -329,10 +335,11 @@ public class ScheduleParser {
      *
      * @param proxyEntry Proxy to use, or null for direct connection
      * @param timeoutMs Connection timeout in milliseconds
+     * @param useSocks Use SOCKS proxy (true) or HTTP proxy (false)
      * @return List of daily schedules
      * @throws IOException if failed to fetch data
      */
-    private List<DailySchedule> fetchSchedulesWithConnection(ProxyConfig.ProxyEntry proxyEntry, int timeoutMs) throws IOException {
+    private List<DailySchedule> fetchSchedulesWithConnection(ProxyConfig.ProxyEntry proxyEntry, int timeoutMs, boolean useSocks) throws IOException {
         List<DailySchedule> schedules = new ArrayList<>();
 
         // Get random browser profile (different from last one)
@@ -368,9 +375,10 @@ public class ScheduleParser {
 
             // Add proxy if specified
             if (proxyEntry != null) {
-                connection.proxy(proxyEntry.toProxy());
-                // Add Proxy-Authorization header for authenticated proxies
-                if (proxyEntry.hasAuth()) {
+                Proxy proxy = useSocks ? proxyEntry.toSocksProxy() : proxyEntry.toHttpProxy();
+                connection.proxy(proxy);
+                // Add Proxy-Authorization header for HTTP proxies with auth
+                if (!useSocks && proxyEntry.hasAuth()) {
                     connection.header("Proxy-Authorization", proxyEntry.getAuthHeader());
                 }
             }
@@ -590,7 +598,7 @@ public class ScheduleParser {
     }
 
     /**
-     * Checks ALL connections (direct + all proxies) and returns list of statuses.
+     * Checks ALL connections (direct + all proxies with both SOCKS and HTTP) and returns list of statuses.
      * Used by /check command to show detailed diagnostics.
      *
      * @return List of WebsiteStatus for each connection attempt
@@ -600,12 +608,15 @@ public class ScheduleParser {
         BrowserProfile profile = getNextBrowserProfile();
 
         // 1. Check direct connection
-        results.add(checkConnectionStatus(profile, null, "Direct"));
+        results.add(checkConnectionStatus(profile, null, "Direct", true));
 
-        // 2. Check all proxies
+        // 2. Check all proxies with both SOCKS and HTTP
         if (proxyConfig.hasProxies()) {
             for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
-                results.add(checkConnectionStatus(profile, proxyEntry, proxyEntry.toString()));
+                // Try SOCKS
+                results.add(checkConnectionStatus(profile, proxyEntry, "SOCKS " + proxyEntry, true));
+                // Try HTTP
+                results.add(checkConnectionStatus(profile, proxyEntry, "HTTP " + proxyEntry, false));
             }
         }
 
@@ -632,8 +643,9 @@ public class ScheduleParser {
      * @param profile Browser profile to use
      * @param proxyEntry Proxy entry (null for direct connection)
      * @param connectionType Label for this connection type
+     * @param useSocks Use SOCKS proxy (true) or HTTP proxy (false)
      */
-    private WebsiteStatus checkConnectionStatus(BrowserProfile profile, ProxyConfig.ProxyEntry proxyEntry, String connectionType) {
+    private WebsiteStatus checkConnectionStatus(BrowserProfile profile, ProxyConfig.ProxyEntry proxyEntry, String connectionType, boolean useSocks) {
         long startTime = System.currentTimeMillis();
         try {
             // Setup proxy authentication if needed
@@ -657,9 +669,10 @@ public class ScheduleParser {
                     .followRedirects(true);
 
             if (proxyEntry != null) {
-                connection.proxy(proxyEntry.toProxy());
-                // Add Proxy-Authorization header for authenticated proxies
-                if (proxyEntry.hasAuth()) {
+                Proxy proxy = useSocks ? proxyEntry.toSocksProxy() : proxyEntry.toHttpProxy();
+                connection.proxy(proxy);
+                // Add Proxy-Authorization header for HTTP proxies with auth
+                if (!useSocks && proxyEntry.hasAuth()) {
                     connection.header("Proxy-Authorization", proxyEntry.getAuthHeader());
                 }
             }
