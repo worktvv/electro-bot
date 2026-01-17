@@ -122,9 +122,11 @@ public class DailySchedule {
     public String formatAll(String userQueue) {
         StringBuilder sb = new StringBuilder();
 
+        // Date at the top
+        sb.append(String.format("📅 *%s*\n\n", date));
+
         // If no data at all (day not found on website)
         if (!hasData()) {
-            sb.append(String.format("📅 *%s*\n\n", date));
             sb.append("⏳ _Графік очікується..._");
             return sb.toString();
         }
@@ -135,11 +137,9 @@ public class DailySchedule {
             if (userHours != null && !userHours.isEmpty()) {
                 sb.append(String.format("🔌 *Черга %s:*\n", userQueue));
                 sb.append(String.format("⏰ *%s*\n", String.join(", ", userHours)));
-                sb.append("\n———————————————————\n\n");
+                sb.append("\n· · · · · · · · · · · · · · · · · · · · ·\n\n");
             }
         }
-
-        sb.append(String.format("📅 *%s*\n\n", date));
 
         // Output all queues in correct order
         for (String queue : ALL_QUEUES) {
