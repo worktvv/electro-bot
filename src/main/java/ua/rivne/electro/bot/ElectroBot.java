@@ -730,7 +730,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         DailySchedule schedule = parser.getTodaySchedule();
         if (schedule != null) {
             String userQueue = userSettings.getUserQueue(chatId);
-            return "📅 *Графік на сьогодні*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
+            return "⚡ *Графік на сьогодні*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
         }
         return "❌ Не вдалося отримати графік на сьогодні.";
     }
@@ -742,7 +742,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         DailySchedule schedule = parser.getTomorrowSchedule();
         if (schedule != null) {
             String userQueue = userSettings.getUserQueue(chatId);
-            return "📆 *Графік на завтра*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
+            return "⚡ *Графік на завтра*\n\n" + schedule.formatAll(userQueue) + getLastUpdateText();
         }
         return "❌ Графік на завтра ще недоступний.";
     }
