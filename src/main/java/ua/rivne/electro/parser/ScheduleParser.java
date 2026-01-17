@@ -731,14 +731,19 @@ public class ScheduleParser {
 
     /**
      * Saves schedules to database.
+     * Clears all existing schedules first to avoid accumulating old data.
      */
     private void saveToDatabase(List<DailySchedule> schedules) {
         if (db == null) return;
+
+        // Clear old schedules before saving new ones
+        db.clearAllSchedules();
 
         for (DailySchedule schedule : schedules) {
             String json = scheduleToJson(schedule);
             db.saveSchedule(schedule.getDate(), json);
         }
+        System.out.println("💾 Saved " + schedules.size() + " schedules to database");
     }
 
     /**
