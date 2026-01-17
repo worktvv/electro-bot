@@ -141,9 +141,9 @@ public class DailySchedule {
                 hoursStr = String.join(", ", hours);
             }
 
-            // Highlight hours for user's queue with italic
+            // Highlight hours for user's queue with bold
             if (queue.equals(userQueue) && hours != null && !hours.isEmpty()) {
-                sb.append(String.format("*%s:* _%s_\n", queue, hoursStr));
+                sb.append(String.format("*%s:* *%s*\n", queue, hoursStr));
             } else {
                 sb.append(String.format("*%s:* %s\n", queue, hoursStr));
             }
