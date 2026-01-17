@@ -241,7 +241,7 @@ public class ScheduleParser {
             for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
                 try {
                     System.out.println("📡 Trying proxy: " + proxyEntry);
-                    schedules = fetchSchedulesWithConnection(proxyEntry.toProxy(), proxyConfig.getTimeoutMillis());
+                    schedules = fetchSchedulesWithConnection(proxyEntry, proxyConfig.getTimeoutMillis());
                     System.out.println("✅ Success via proxy: " + proxyEntry);
                     break; // Success!
                 } catch (Exception e) {
@@ -327,86 +327,98 @@ public class ScheduleParser {
     /**
      * Fetches schedules using specified connection (direct or via proxy).
      *
-     * @param proxy Proxy to use, or null for direct connection
+     * @param proxyEntry Proxy to use, or null for direct connection
      * @param timeoutMs Connection timeout in milliseconds
      * @return List of daily schedules
      * @throws IOException if failed to fetch data
      */
-    private List<DailySchedule> fetchSchedulesWithConnection(Proxy proxy, int timeoutMs) throws IOException {
+    private List<DailySchedule> fetchSchedulesWithConnection(ProxyConfig.ProxyEntry proxyEntry, int timeoutMs) throws IOException {
         List<DailySchedule> schedules = new ArrayList<>();
 
         // Get random browser profile (different from last one)
         BrowserProfile profile = getNextBrowserProfile();
         long startTime = System.currentTimeMillis();
 
-        // Build connection with realistic browser headers
-        Connection connection = Jsoup.connect(Config.SCHEDULE_URL)
-                .userAgent(profile.userAgent)
-                .header("Accept", profile.accept)
-                .header("Accept-Language", profile.acceptLanguage)
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("Connection", "keep-alive")
-                .header("Upgrade-Insecure-Requests", "1")
-                .header("Sec-Fetch-Dest", "document")
-                .header("Sec-Fetch-Mode", "navigate")
-                .header("Sec-Fetch-Site", "cross-site")
-                .header("Sec-Fetch-User", "?1")
-                .header("Cache-Control", "max-age=0")
-                .referrer(profile.referer)
-                .timeout(timeoutMs)
-                .sslSocketFactory(getInsecureSSLSocketFactory())
-                .ignoreHttpErrors(true)
-                .followRedirects(true);
-
-        // Add proxy if specified
-        if (proxy != null) {
-            connection.proxy(proxy);
+        // Setup proxy authentication if needed
+        if (proxyEntry != null && proxyEntry.hasAuth()) {
+            proxyEntry.setupAuthenticator();
+        } else {
+            ProxyConfig.ProxyEntry.clearAuthenticator();
         }
 
-        Document doc = connection.get();
+        try {
+            // Build connection with realistic browser headers
+            Connection connection = Jsoup.connect(Config.SCHEDULE_URL)
+                    .userAgent(profile.userAgent)
+                    .header("Accept", profile.accept)
+                    .header("Accept-Language", profile.acceptLanguage)
+                    .header("Accept-Encoding", "gzip, deflate, br")
+                    .header("Connection", "keep-alive")
+                    .header("Upgrade-Insecure-Requests", "1")
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "cross-site")
+                    .header("Sec-Fetch-User", "?1")
+                    .header("Cache-Control", "max-age=0")
+                    .referrer(profile.referer)
+                    .timeout(timeoutMs)
+                    .sslSocketFactory(getInsecureSSLSocketFactory())
+                    .ignoreHttpErrors(true)
+                    .followRedirects(true);
 
-        long elapsed = System.currentTimeMillis() - startTime;
-        System.out.println("🌐 Page loaded in " + elapsed + "ms" + (proxy != null ? " via proxy" : " direct"));
+            // Add proxy if specified
+            if (proxyEntry != null) {
+                connection.proxy(proxyEntry.toProxy());
+            }
 
-        // Find schedule table
-        Element table = doc.selectFirst("table");
-        if (table == null) {
-            throw new IOException("Schedule table not found on page");
-        }
+            Document doc = connection.get();
 
-        // Get all table rows
-        Elements rows = table.select("tr");
+            long elapsed = System.currentTimeMillis() - startTime;
+            System.out.println("🌐 Page loaded in " + elapsed + "ms" + (proxyEntry != null ? " via proxy" : " direct"));
 
-        // Skip headers (first 2 rows) and process data
-        for (int i = 2; i < rows.size(); i++) {
-            Element row = rows.get(i);
-            Elements cells = row.select("td");
+            // Find schedule table
+            Element table = doc.selectFirst("table");
+            if (table == null) {
+                throw new IOException("Schedule table not found on page");
+            }
 
-            if (cells.size() >= 13) {
-                // First column - date
-                String date = cells.get(0).text().trim();
+            // Get all table rows
+            Elements rows = table.select("tr");
 
-                if (!date.isEmpty() && date.matches("\\d{2}\\.\\d{2}\\.\\d{4}")) {
-                    DailySchedule dailySchedule = new DailySchedule(date);
+            // Skip headers (first 2 rows) and process data
+            for (int i = 2; i < rows.size(); i++) {
+                Element row = rows.get(i);
+                Elements cells = row.select("td");
 
-                    // Columns 1-12 - hours for each sub-queue
-                    for (int j = 0; j < QUEUE_NAMES.length && j + 1 < cells.size(); j++) {
-                        // Use html() to preserve <br> tags, then convert to newlines
-                        String hoursHtml = cells.get(j + 1).html();
-                        String hoursText = hoursHtml
-                            .replaceAll("<br\\s*/?>", "\n")  // Convert <br> to newline
-                            .replaceAll("<[^>]+>", "")       // Remove other HTML tags
-                            .trim();
-                        List<String> hours = parseHours(hoursText);
-                        dailySchedule.addQueueHours(QUEUE_NAMES[j], hours);
+                if (cells.size() >= 13) {
+                    // First column - date
+                    String date = cells.get(0).text().trim();
+
+                    if (!date.isEmpty() && date.matches("\\d{2}\\.\\d{2}\\.\\d{4}")) {
+                        DailySchedule dailySchedule = new DailySchedule(date);
+
+                        // Columns 1-12 - hours for each sub-queue
+                        for (int j = 0; j < QUEUE_NAMES.length && j + 1 < cells.size(); j++) {
+                            // Use html() to preserve <br> tags, then convert to newlines
+                            String hoursHtml = cells.get(j + 1).html();
+                            String hoursText = hoursHtml
+                                .replaceAll("<br\\s*/?>", "\n")  // Convert <br> to newline
+                                .replaceAll("<[^>]+>", "")       // Remove other HTML tags
+                                .trim();
+                            List<String> hours = parseHours(hoursText);
+                            dailySchedule.addQueueHours(QUEUE_NAMES[j], hours);
+                        }
+
+                        schedules.add(dailySchedule);
                     }
-
-                    schedules.add(dailySchedule);
                 }
             }
-        }
 
-        return schedules;
+            return schedules;
+        } finally {
+            // Clear authenticator after use
+            ProxyConfig.ProxyEntry.clearAuthenticator();
+        }
     }
 
     /**
@@ -589,7 +601,7 @@ public class ScheduleParser {
         // 2. Check all proxies
         if (proxyConfig.hasProxies()) {
             for (ProxyConfig.ProxyEntry proxyEntry : proxyConfig.getProxies()) {
-                results.add(checkConnectionStatus(profile, proxyEntry.toProxy(), proxyEntry.toString()));
+                results.add(checkConnectionStatus(profile, proxyEntry, proxyEntry.toString()));
             }
         }
 
@@ -612,10 +624,21 @@ public class ScheduleParser {
 
     /**
      * Checks connection status with optional proxy.
+     *
+     * @param profile Browser profile to use
+     * @param proxyEntry Proxy entry (null for direct connection)
+     * @param connectionType Label for this connection type
      */
-    private WebsiteStatus checkConnectionStatus(BrowserProfile profile, Proxy proxy, String connectionType) {
+    private WebsiteStatus checkConnectionStatus(BrowserProfile profile, ProxyConfig.ProxyEntry proxyEntry, String connectionType) {
         long startTime = System.currentTimeMillis();
         try {
+            // Setup proxy authentication if needed
+            if (proxyEntry != null && proxyEntry.hasAuth()) {
+                proxyEntry.setupAuthenticator();
+            } else {
+                ProxyConfig.ProxyEntry.clearAuthenticator();
+            }
+
             Connection connection = Jsoup.connect(Config.SCHEDULE_URL)
                     .userAgent(profile.userAgent)
                     .header("Accept", profile.accept)
@@ -629,8 +652,8 @@ public class ScheduleParser {
                     .ignoreHttpErrors(true)
                     .followRedirects(true);
 
-            if (proxy != null) {
-                connection.proxy(proxy);
+            if (proxyEntry != null) {
+                connection.proxy(proxyEntry.toProxy());
             }
 
             Document doc = connection.get();
@@ -645,6 +668,9 @@ public class ScheduleParser {
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
             return new WebsiteStatus(false, elapsed, connectionType + ": " + e.getClass().getSimpleName() + " - " + e.getMessage(), false, 0, profile.userAgent);
+        } finally {
+            // Clear authenticator after use
+            ProxyConfig.ProxyEntry.clearAuthenticator();
         }
     }
 
