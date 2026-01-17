@@ -160,6 +160,7 @@ public class DailySchedule {
             if (userHours != null && !userHours.isEmpty()) {
                 sb.append(String.format("🔌 *Черга %s:*\n", userQueue));
                 sb.append(String.format("⏰ *%s*\n", String.join(", ", userHours)));
+                sb.append("\n\n");
             }
         }
 
