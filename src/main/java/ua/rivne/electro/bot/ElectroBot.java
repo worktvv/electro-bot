@@ -709,13 +709,16 @@ public class ElectroBot extends TelegramLongPollingBot {
 
     /**
      * Returns formatted string with last cache update time.
-     * Shows warning if source website is unavailable.
+     * Shows warning if data is older than 9 hours.
      */
     private String getLastUpdateText() {
         LocalDateTime lastUpdate = parser.getLastCacheUpdate();
         if (lastUpdate != null) {
             String updateText = "\n\n_Дані оновлено " + formatKyivTime(lastUpdate) + "_";
-            if (parser.isSourceUnavailable()) {
+
+            // Show warning if last update was 9+ hours ago
+            long hoursSinceUpdate = java.time.Duration.between(lastUpdate, LocalDateTime.now()).toHours();
+            if (hoursSinceUpdate >= 9) {
                 updateText += "\n\n⚠️ _Дані можуть бути застарілі. Оновлення даних відбувалося кілька годин тому_";
             }
             return updateText;
