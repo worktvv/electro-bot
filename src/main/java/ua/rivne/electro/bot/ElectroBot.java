@@ -22,6 +22,7 @@ import ua.rivne.electro.service.UserSettingsService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,12 @@ import java.util.Map;
 public class ElectroBot extends TelegramLongPollingBot {
 
     private static final Logger log = LoggerFactory.getLogger(ElectroBot.class);
+
+    /** Timezone for displaying dates/times to users */
+    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
+
+    /** Formatter for displaying update time */
+    private static final DateTimeFormatter KYIV_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
     private final Config config;
     private final ScheduleParser parser;
@@ -469,8 +476,7 @@ public class ElectroBot extends TelegramLongPollingBot {
         // Cache and website status
         sb.append("🌐 *Джерело даних:*\n");
         sb.append(String.format("• Кеш: %s\n", parser.hasCachedData() ? "✅ є дані" : "❌ порожній"));
-        sb.append(String.format("• Оновлено: %s\n",
-                parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+        sb.append(String.format("• Оновлено: %s\n", formatKyivTime(parser.getLastCacheUpdate())));
         sb.append(String.format("• Остання спроба: %s\n", parser.isLastFetchFailed() ? "❌ невдала" : "✅ успішна"));
         sb.append("\n_Команди: /check, /refresh_");
 
@@ -556,8 +562,7 @@ public class ElectroBot extends TelegramLongPollingBot {
 
             sb.append("*Стан кешу:*\n");
             sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "✅ так" : "❌ ні"));
-            sb.append(String.format("• Останнє оновлення: %s\n",
-                    parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+            sb.append(String.format("• Останнє оновлення: %s\n", formatKyivTime(parser.getLastCacheUpdate())));
             sb.append(String.format("• Остання спроба невдала: %s\n", parser.isLastFetchFailed() ? "❌ так" : "✅ ні"));
 
             if (!parser.hasCachedData()) {
@@ -590,8 +595,7 @@ public class ElectroBot extends TelegramLongPollingBot {
             StringBuilder sb = new StringBuilder();
             sb.append("🔄 *Результат оновлення*\n\n");
             sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "✅ так" : "❌ ні"));
-            sb.append(String.format("• Останнє оновлення: %s\n",
-                    parser.getLastCacheUpdate() != null ? parser.getLastCacheUpdate().toString() : "ніколи"));
+            sb.append(String.format("• Останнє оновлення: %s\n", formatKyivTime(parser.getLastCacheUpdate())));
             sb.append(String.format("• Остання спроба невдала: %s\n", parser.isLastFetchFailed() ? "❌ так" : "✅ ні"));
 
             if (parser.hasCachedData()) {
@@ -667,9 +671,8 @@ public class ElectroBot extends TelegramLongPollingBot {
         sb.append("\n");
 
         // Cache info
-        var lastUpdate = parser.getLastCacheUpdate();
         sb.append("*Кеш:*\n");
-        sb.append(String.format("• Останнє оновлення: %s\n", lastUpdate != null ? lastUpdate.toString() : "ніколи"));
+        sb.append(String.format("• Останнє оновлення: %s\n", formatKyivTime(parser.getLastCacheUpdate())));
         sb.append(String.format("• Є дані: %s\n", parser.hasCachedData() ? "так" : "ні"));
 
         sendMessageWithKeyboard(chatId, sb.toString(), KeyboardFactory.statsKeyboard());
@@ -692,13 +695,26 @@ public class ElectroBot extends TelegramLongPollingBot {
     private static final DateTimeFormatter UPDATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy 'о' HH:mm");
 
     /**
+     * Formats LocalDateTime to Kyiv timezone string.
+     * Handles conversion from UTC (database) to Kyiv time.
+     */
+    private String formatKyivTime(LocalDateTime utcTime) {
+        if (utcTime == null) return "ніколи";
+        // Convert UTC to Kyiv time (+2 or +3 depending on DST)
+        LocalDateTime kyivTime = utcTime.atZone(ZoneId.of("UTC"))
+                .withZoneSameInstant(KYIV_ZONE)
+                .toLocalDateTime();
+        return kyivTime.format(KYIV_TIME_FORMAT);
+    }
+
+    /**
      * Returns formatted string with last cache update time.
      * Shows warning if source website is unavailable.
      */
     private String getLastUpdateText() {
         LocalDateTime lastUpdate = parser.getLastCacheUpdate();
         if (lastUpdate != null) {
-            String updateText = "\n\n_Дані оновлено " + lastUpdate.format(UPDATE_TIME_FORMAT) + "_";
+            String updateText = "\n\n_Дані оновлено " + formatKyivTime(lastUpdate) + "_";
             if (parser.isSourceUnavailable()) {
                 updateText += "\n\n⚠️ _Дані можуть бути застарілі. Оновлення даних відбувалося кілька годин тому_";
             }
