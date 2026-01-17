@@ -1,7 +1,10 @@
 package ua.rivne.electro.model;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -27,6 +30,12 @@ public class DailySchedule {
         "1.1", "1.2", "2.1", "2.2", "3.1", "3.2",
         "4.1", "4.2", "5.1", "5.2", "6.1", "6.2"
     };
+
+    /** Formatter for parsing date from "dd.MM.yyyy" */
+    private static final DateTimeFormatter INPUT_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+
+    /** Formatter for displaying date as "17 січня 2026 р." */
+    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy 'р.'", new Locale("uk", "UA"));
 
     private final String date;
     private final Map<String, List<String>> queueHours;
@@ -58,6 +67,20 @@ public class DailySchedule {
      */
     public String getDate() {
         return date;
+    }
+
+    /**
+     * Returns formatted date for display (e.g., "17 січня 2026 р.").
+     *
+     * @return formatted date string
+     */
+    public String getFormattedDate() {
+        try {
+            LocalDate localDate = LocalDate.parse(date, INPUT_FORMAT);
+            return localDate.format(DISPLAY_FORMAT);
+        } catch (Exception e) {
+            return date; // fallback to original format
+        }
     }
 
     /**
@@ -122,8 +145,8 @@ public class DailySchedule {
     public String formatAll(String userQueue) {
         StringBuilder sb = new StringBuilder();
 
-        // Date at the top
-        sb.append(String.format("📅 *%s*\n\n", date));
+        // Date at the top (formatted)
+        sb.append(String.format("📅 *%s*\n\n", getFormattedDate()));
 
         // If no data at all (day not found on website)
         if (!hasData()) {
