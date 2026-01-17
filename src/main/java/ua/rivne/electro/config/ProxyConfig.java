@@ -42,8 +42,29 @@ public class ProxyConfig {
         public String getPassword() { return password; }
         public boolean hasAuth() { return username != null && !username.isEmpty(); }
 
-        public Proxy toProxy() {
+        public Proxy toSocksProxy() {
+            return new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
+        }
+
+        public Proxy toHttpProxy() {
             return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
+        }
+
+        /**
+         * @deprecated Use toSocksProxy() or toHttpProxy() instead
+         */
+        public Proxy toProxy() {
+            return toSocksProxy();
+        }
+
+        /**
+         * Returns Base64-encoded credentials for Proxy-Authorization header.
+         * Format: "Basic base64(username:password)"
+         */
+        public String getAuthHeader() {
+            if (!hasAuth()) return null;
+            String credentials = username + ":" + password;
+            return "Basic " + java.util.Base64.getEncoder().encodeToString(credentials.getBytes());
         }
 
         /**
