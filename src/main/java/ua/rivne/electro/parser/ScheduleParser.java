@@ -604,6 +604,13 @@ public class ScheduleParser {
     }
 
     /**
+     * Returns the configured timeout in seconds.
+     */
+    public int getTimeoutSeconds() {
+        return proxyConfig.getTimeoutMillis() / 1000;
+    }
+
+    /**
      * Checks connection status with optional proxy.
      */
     private WebsiteStatus checkConnectionStatus(BrowserProfile profile, Proxy proxy, String connectionType) {
