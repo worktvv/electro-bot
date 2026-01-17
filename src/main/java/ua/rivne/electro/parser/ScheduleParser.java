@@ -369,6 +369,10 @@ public class ScheduleParser {
             // Add proxy if specified
             if (proxyEntry != null) {
                 connection.proxy(proxyEntry.toProxy());
+                // Add Proxy-Authorization header for authenticated proxies
+                if (proxyEntry.hasAuth()) {
+                    connection.header("Proxy-Authorization", proxyEntry.getAuthHeader());
+                }
             }
 
             Document doc = connection.get();
@@ -654,6 +658,10 @@ public class ScheduleParser {
 
             if (proxyEntry != null) {
                 connection.proxy(proxyEntry.toProxy());
+                // Add Proxy-Authorization header for authenticated proxies
+                if (proxyEntry.hasAuth()) {
+                    connection.header("Proxy-Authorization", proxyEntry.getAuthHeader());
+                }
             }
 
             Document doc = connection.get();
