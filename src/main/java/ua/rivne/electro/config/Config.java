@@ -15,7 +15,8 @@ public class Config {
     private final Long adminChatId;
 
     // URL of the power outage schedule page
-    public static final String SCHEDULE_URL = "https://www.roe.vsei.ua/disconnections";
+    //public static final String SCHEDULE_URL = "https://www.roe.vsei.ua/disconnections";
+    public static final String SCHEDULE_URL = "https://surl.li/vnimhk";
 
     private Config(String botToken, String botUsername, String databaseUrl, Long adminChatId) {
         this.botToken = botToken;
